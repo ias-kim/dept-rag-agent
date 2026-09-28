@@ -21,15 +21,9 @@
 
 ## 기술 스택
 
-| 구분 | 선정 |
-|---|---|
-| 백엔드 | Python, FastAPI |
-| AI 기능 연결 | MCP (Python SDK) |
-| 답변 생성 | Anthropic Claude API |
-| 임베딩 | OpenAI text-embedding-3-small |
-| 저장·검색 | PostgreSQL + pgvector |
-| 프론트엔드 | React + Vite |
-| 배포 | Docker + AWS EC2 |
+Python 3.12 · FastAPI · MCP · Claude API · pgvector · React+Vite · Docker+EC2
+
+버전과 선정 근거는 [`docs/harness/profile.md`](docs/harness/profile.md), 의존성 원본은 [`docs/sot.md`](docs/sot.md)를 봅니다.
 
 ## 디렉터리 구조
 
@@ -43,31 +37,27 @@ backend/        FastAPI 백엔드 + MCP 서버
   tests/        pytest
 frontend/       React + Vite 프론트엔드
 docker/         docker-compose, Dockerfile
-docs/           요구사항 정의서, 구조도 등
+docs/           요구사항 정의서, 구조도, 하네스(sot.md, adr/, harness/)
 til/{이름}/     팀원별 학습 기록 (매주 1편 이상)
 ```
 
 ## 로컬 개발 환경 세팅
 
+필요: Python 3.12, [uv](https://docs.astral.sh/uv/), Node 20+, Docker
+
 ```bash
-# 백엔드
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-
-# 프론트엔드
-cd frontend
-npm install
-npm run dev
-
-# DB (PostgreSQL + pgvector)
-docker compose -f docker/docker-compose.yml up -d
+make setup                                           # backend/.venv(3.12) + frontend 의존성
+docker compose -f docker/docker-compose.yml up -d    # DB (PostgreSQL + pgvector)
+cd backend && .venv/bin/uvicorn app.main:app --reload
+cd frontend && npm run dev
+make check                                           # 커밋 전 검증 (CI와 동일)
 ```
+
+명령 전체와 작업 규칙은 [`AGENTS.md`](AGENTS.md)에 있습니다.
 
 ## TIL 규칙
 
-`til/{이름}/{날짜}.md` 형식으로 매주 1편 이상 작성 후 커밋.
+`til/{이름}/{YYYY-MM-DD}.md` 형식으로 매주 1편 이상 작성 후 커밋. 규칙을 어기면 `make check`가 실패합니다.
 
 ## 팀
 
