@@ -1,0 +1,52 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate1:
+    name: 게이트 1 (make check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 위험 경로 diff에 base 브랜치 이력 필요
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 의존성 설치
+        run: |
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+          cd frontend && npm ci
+
+      - name: make check
+        run: make check PY=python
+
+      - name: 위험 경로 변경 경고 (게이트 3 필요 여부)
+        if: github.event_name == 'pull_request'
+        run: |
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          hits=""
+          while IFS= read -r prefix; do
+            case "$prefix" in ''|'#'*) continue ;; esac
+            m=$(printf '%s\n' "$changed" | awk -v p="$prefix" 'index($0, p) == 1')
+            if [ -n "$m" ]; then hits="$hits$m"$'\n'; fi
+          done < docs/harness/risk-paths.txt
+          if [ -n "$hits" ]; then
+            echo "::warning::위험 경로 변경 — 게이트 3(교차 모델 리뷰) 결과를 PR에 첨부하세요. docs/harness/profile.md 참고"
+            { echo "### ⚠️ 위험 경로 변경 → 게이트 3 필요"; echo '```'; printf '%s' "$hits" | sort -u; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "위험 경로 변경 없음" >> "$GITHUB_STEP_SUMMARY"
+          fi

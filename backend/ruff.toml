@@ -1,0 +1,6 @@
+# 1·2학년도 막히지 않도록 기본 규칙(E4·E7·E9·F) + import 정렬(I)만 켠다.
+target-version = "py312"
+line-length = 100
+
+[lint]
+extend-select = ["I"]

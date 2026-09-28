@@ -1,0 +1,9 @@
+# 위험 경로 SoT — 여기 걸리는 파일이 바뀐 PR은 게이트 3(교차 모델 리뷰) 필요.
+# 한 줄에 하나, 경로 접두사. '#'은 주석. CI(.github/workflows/check.yml)가 이 파일을 읽는다.
+backend/app/mcp/
+backend/app/db/
+backend/requirements.txt
+docker/
+.github/
+.env.example
+docs/harness/risk-paths.txt
