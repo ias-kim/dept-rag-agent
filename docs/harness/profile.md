@@ -38,8 +38,9 @@
 
 ## 버전 고정 이유
 
-- Python 3.12: `psycopg-binary==3.2.3`에 cp314 wheel 없음(2026-09-28 확인).
-- `fastapi==0.115.6`: 0.115.0은 `mcp==1.1.0`과 starlette 범위 충돌로 설치 불가였음.
+- Python 3.12: 팀 기준 버전. (최초 고정 사유: `psycopg-binary==3.2.3`에 cp314 wheel 없음, 2026-09-28)
+- 의존성: 2026-09-28 최신으로 일괄 고정 → [`exec-plans/…/2026-09-28-deps-upgrade.md`](../exec-plans/active/2026-09-28-deps-upgrade.md)
+- 보안 하한선: starlette ≥ 0.47.2, `backend/tests/test_dependency_floor.py`가 강제
 
 ## 운영
 
