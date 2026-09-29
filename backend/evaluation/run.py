@@ -64,9 +64,12 @@ def write_run(records: list[dict], meta: dict, out_dir: Path, name: str) -> tupl
     runs.mkdir(parents=True, exist_ok=True)
     grading.mkdir(parents=True, exist_ok=True)
     run_path = runs / f"{name}.jsonl"
+    grading_path = grading / f"{name}.csv"
+    for existing in (run_path, grading_path):
+        if existing.exists():
+            raise FileExistsError(f"{existing} 이미 있음 — 다른 LABEL을 쓰세요 (예: baseline-2)")
     run_path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records), encoding="utf-8")
     (runs / f"{name}.meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    grading_path = grading / f"{name}.csv"
     with grading_path.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=GRADING_FIELDS)
         writer.writeheader()

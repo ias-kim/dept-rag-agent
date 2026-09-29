@@ -40,3 +40,12 @@ def test_write_run_creates_jsonl_meta_and_grading_template(tmp_path):
     rows = list(csv.DictReader(grading_path.open(encoding="utf-8-sig")))
     assert rows[0]["id"] == "A01" and rows[0]["key_points"] == "9월 8일"
     assert rows[0]["key_points_ok"] == "" and rows[0]["no_hallucination"] == ""
+
+
+def test_write_run_refuses_to_overwrite_existing_run(tmp_path):
+    rec = evaluate_item(ITEM, ANSWER, 10)
+    _, grading_path = write_run([rec], {"label": "baseline"}, tmp_path, "same")
+    before = grading_path.read_bytes()
+    with pytest.raises(FileExistsError, match="LABEL"):
+        write_run([rec], {"label": "baseline"}, tmp_path, "same")
+    assert grading_path.read_bytes() == before
