@@ -15,6 +15,8 @@
 | **게이트 1 전체** | `make check` | CI와 동일. 끝내기 전에 반드시 통과 |
 | 적재 | `make migrate && make ingest` | `data/academic/…`, `data/major/<과목코드>/…` PDF |
 | 스모크 | `make smoke` | 서버 실행 중 `/health` 확인 |
+| 평가 | `make eval LABEL=baseline` → 채점 → `make eval-report` | 실제 API 비용 발생. 가이드 `eval/README.md` |
+| 평가셋 동결 | `make eval-freeze` | 이후 `eval/questions.yaml` 수정 시 `make check` 실패 |
 
 서버 실행: `cd backend && .venv/bin/uvicorn app.main:app --reload`
 
