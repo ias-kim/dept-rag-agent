@@ -1,4 +1,5 @@
 from app.core.answer import (
+    CANNOT_ANSWER,
     EMPTY,
     FALLBACK_BETA,
     NO_EVIDENCE,
@@ -34,7 +35,7 @@ def test_unretrieved_citation_is_dropped():
     answer = generate_answer(FakeLLM("지어낸 규정이다[C99]."), "q", [make_hit(12)], **OPTS)
     assert answer.text == "지어낸 규정이다."
     assert answer.sources == []
-    assert answer.citation_ok is False and answer.notices == ["invalid_citation"]
+    assert answer.citation_ok is False and answer.notices == ["invalid_citation", "no_citation"]
 
 
 def test_refusal_does_not_read_content():
@@ -73,3 +74,40 @@ def test_empty_response_is_flagged():
     assert answer.text == EMPTY
     assert answer.sources == []
     assert answer.notices == ["empty"]
+
+
+def test_preexisting_bracket_numbers_are_neutralized():
+    answer = generate_answer(FakeLLM("참고문헌 [1] 에 따르면 X다[C7]."), "q", [make_hit(7)], **OPTS)
+    assert answer.text == "참고문헌 ［1］ 에 따르면 X다[1]."
+    assert len(answer.sources) == 1
+
+
+def test_list_form_citations_are_expanded():
+    hits = [make_hit(7), make_hit(12)]
+    for raw in ("X[C7, C12]", "X[C7,C12]", "X[C7, 12]"):
+        answer = generate_answer(FakeLLM(raw), "q", hits, **OPTS)
+        assert answer.text == "X[1][2]", raw
+        assert answer.citation_ok is True and len(answer.sources) == 2
+
+
+def test_list_form_with_invalid_id_drops_it_and_flags():
+    answer = generate_answer(FakeLLM("X[C7, C99]"), "q", [make_hit(7)], **OPTS)
+    assert answer.text == "X[1]" and answer.citation_ok is False
+    assert answer.notices == ["invalid_citation"]
+
+
+def test_malformed_marker_is_removed_and_flagged():
+    for raw in ("X[c7]", "X［C7］", "X[C7 참고]"):
+        answer = generate_answer(FakeLLM(raw), "q", [make_hit(7)], **OPTS)
+        assert answer.text == "X", raw
+        assert "invalid_citation" in answer.notices and answer.citation_ok is False
+
+
+def test_answer_without_citation_gets_notice():
+    answer = generate_answer(FakeLLM("그냥 답"), "q", [make_hit(7)], **OPTS)
+    assert answer.notices == ["no_citation"] and answer.citation_ok is False
+
+
+def test_cannot_answer_phrase_needs_no_citation():
+    answer = generate_answer(FakeLLM(f"{CANNOT_ANSWER}."), "q", [make_hit(7)], **OPTS)
+    assert answer.notices == [] and answer.citation_ok is True

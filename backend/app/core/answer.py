@@ -16,7 +16,12 @@ from app.core.config import Settings
 from app.db.search import ChunkHit
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "answer.md"
-CITATION_RE = re.compile(r"\[C(\d+)\]")
+# 인용처럼 보이는 모든 표기(반각·전각 괄호, 목록형, 소문자, 군더더기 포함)
+MARKER_RE = re.compile(r"[\[［]\s*[Cc]\s*\d+[^\]］]*[\]］]")
+# 코드가 인정하는 정상 표기: [C7] · [C7, C12] · [C7, 12]
+VALID_MARKER_RE = re.compile(r"\[\s*C\d+(?:\s*,\s*C?\d+)*\s*\]")
+PLAIN_NUMBER_RE = re.compile(r"\[(\d+)\]")
+CANNOT_ANSWER = "제공된 자료에서 답을 찾을 수 없습니다"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 NO_EVIDENCE = "관련 자료를 찾지 못했습니다. 질문을 조금 더 구체적으로 해 주세요."
 REFUSED = "이 질문에는 답변할 수 없습니다."
@@ -63,22 +68,32 @@ def verify_citations(raw: str, hits: Sequence[ChunkHit]) -> Answer:
     by_id = {h.chunk_id: h for h in hits}
     order: list[int] = []
     invalid = False
-    for m in CITATION_RE.finditer(raw):
-        cid = int(m.group(1))
-        if cid not in by_id:
+    # 자료에 원래 있던 [1] 같은 표기가 재번호된 인용과 섞이지 않게 전각으로 바꾼다
+    raw = PLAIN_NUMBER_RE.sub(lambda m: f"［{m.group(1)}］", raw)
+
+    def replace(m: re.Match[str]) -> str:
+        nonlocal invalid
+        marker = m.group(0)
+        if not VALID_MARKER_RE.fullmatch(marker):
             invalid = True
-        elif cid not in order:
-            order.append(cid)
-    number = {cid: i + 1 for i, cid in enumerate(order)}
-    text = CITATION_RE.sub(lambda m: f"[{number[int(m.group(1))]}]" if int(m.group(1)) in number else "", raw)
+            return ""
+        numbers = []
+        for cid in (int(n) for n in re.findall(r"\d+", marker)):
+            if cid not in by_id:
+                invalid = True
+                continue
+            if cid not in order:
+                order.append(cid)
+            numbers.append(order.index(cid) + 1)
+        return "".join(f"[{n}]" for n in numbers)
+
+    text = MARKER_RE.sub(replace, raw).strip()
     sources = [Source(by_id[c].source, by_id[c].page, by_id[c].section) for c in order]
-    return Answer(
-        text=text.strip(),
-        sources=sources,
-        citation_ok=not invalid,
-        notices=["invalid_citation"] if invalid else [],
-        retrieved=list(hits),
-    )
+    notices = ["invalid_citation"] if invalid else []
+    if not sources and CANNOT_ANSWER not in text:
+        notices.append("no_citation")
+        invalid = True
+    return Answer(text=text, sources=sources, citation_ok=not invalid, notices=notices, retrieved=list(hits))
 
 
 def generate_answer(llm: Any, question: str, hits: Sequence[ChunkHit], *, model: str, effort: str,
