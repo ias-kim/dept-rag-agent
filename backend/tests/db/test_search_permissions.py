@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import text
 
 from app.db.models import Chunk, Document
 from app.db.search import search_chunks
@@ -7,7 +8,7 @@ from tests.fakes import unit
 
 @pytest.fixture
 def corpus(session):
-    """학사 1, CS101 전공 1, CS202 전공 1 — 모두 같은 방향(unit(0)) + 학사 방향 다른 조각 1."""
+    """문서 4개(각 조각 1개): academic a(축0)·b(축1), major CS101 x(축0), major CS202 y(축0)."""
     specs = [
         ("academic/a.pdf", "academic", None, 0),
         ("academic/b.pdf", "academic", None, 1),
@@ -65,3 +66,28 @@ def test_k_limits_results(session, corpus):
 def test_unknown_scope_rejected(session, corpus):
     with pytest.raises(ValueError):
         search_chunks(session, unit(0), scope="secret", allowed_courses=set())
+
+
+def test_bare_str_allowed_courses_rejected(session, corpus):
+    with pytest.raises(TypeError):
+        search_chunks(session, unit(0), scope="major", allowed_courses="CS101")  # type: ignore[arg-type]
+
+
+def test_lowercase_course_code_does_not_match(session, corpus):
+    assert search_chunks(session, unit(0), scope="major", allowed_courses={"cs101"}) == []
+
+
+def test_academic_scope_ignores_enrolled_major_chunks(session, corpus):
+    hits = search_chunks(session, unit(0), scope="academic", allowed_courses={"CS101", "CS202"})
+    assert hits and all(h.scope == "academic" for h in hits)
+
+
+def test_iterative_scan_enabled_for_filtered_hnsw(session, corpus):
+    search_chunks(session, unit(0), scope="major", allowed_courses={"CS101"})
+    assert session.execute(text("SHOW hnsw.iterative_scan")).scalar_one() == "strict_order"
+
+
+def test_partial_index_path_still_returns_enrolled_chunk(session, corpus):
+    session.execute(text("SET LOCAL enable_seqscan = off"))
+    hits = search_chunks(session, unit(0), scope="major", allowed_courses={"CS101"})
+    assert sources(hits) == ["major/CS101/x.pdf"]

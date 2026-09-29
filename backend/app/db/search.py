@@ -3,7 +3,7 @@
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import and_, bindparam, or_, select
+from sqlalchemy import and_, bindparam, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import SCOPES, Chunk, Document
@@ -30,8 +30,13 @@ def search_chunks(
     k: int = 5,
     min_score: float = 0.0,
 ) -> list[ChunkHit]:
+    if isinstance(allowed_courses, str):
+        raise TypeError("allowed_courses must be a collection of course codes, not str")
     if scope not in SCOPES:
         raise ValueError(f"unknown scope: {scope!r}")
+    # HNSW는 근사 탐색 후 WHERE로 거르므로 필터가 강하면 k개가 안 채워질 수 있다.
+    # 필터를 통과한 행이 k개가 될 때까지 계속 스캔하게 한다(pgvector ≥ 0.8). 트랜잭션 한정.
+    session.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
     distance = Chunk.embedding.cosine_distance(list(query_vec)).label("distance")
     stmt = (
         select(Chunk, Document.path, distance)
