@@ -30,8 +30,10 @@ def chunk_pages(pages: Sequence[Page], *, max_chars: int, overlap: int) -> list[
         start = 0
         while start < len(text):
             end = min(start + max_chars, len(text))
-            in_effect = [name for pos, name in headings if pos < end]
-            section = in_effect[-1] if in_effect else carried
+            # 조각이 시작되는 지점의 조항을 쓴다. 시작 시점에 조항이 없으면 조각 안의 첫 조항.
+            at_start = [name for pos, name in headings if pos <= start]
+            inside = [name for pos, name in headings if start < pos < end]
+            section = at_start[-1] if at_start else (carried or (inside[0] if inside else None))
             drafts.append(ChunkDraft(page=page.number, section=section, ord=len(drafts), text=text[start:end]))
             if end == len(text):
                 break

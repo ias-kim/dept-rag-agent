@@ -34,6 +34,13 @@ def test_later_heading_replaces_section():
     assert [d.section for d in chunk_pages(pages, max_chars=800, overlap=100)] == ["제1조(목적)", "제2조(기간)"]
 
 
+def test_section_follows_chunk_start_not_heading_near_its_end():
+    # 제2조 제목이 첫 조각 끝부분(약 749자)에 있어도, 그 조각은 제1조로 시작하므로 제1조다
+    text = "제1조(목적) " + "가" * 740 + "\n제2조(기간) " + "나" * 1000
+    drafts = chunk_pages([Page(1, text)], max_chars=800, overlap=100)
+    assert [d.section for d in drafts] == ["제1조(목적)", "제1조(목적)", "제2조(기간)"]
+
+
 def test_overlap_must_be_smaller_than_max():
     with pytest.raises(ValueError):
         chunk_pages([Page(1, "가")], max_chars=100, overlap=100)
