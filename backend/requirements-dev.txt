@@ -1,1 +1,2 @@
 ruff==0.16.9
+packaging==26.3
