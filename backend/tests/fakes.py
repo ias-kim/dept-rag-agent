@@ -1,3 +1,4 @@
+import zlib
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -24,3 +25,17 @@ def make_pdf(path: Path, pages: Sequence[str]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(bytes(pdf.output()))
     return path
+
+
+class FakeEmbedder:
+    """텍스트 CRC로 축을 고르는 결정론적 임베더. fail_on_call번째 호출에서 예외."""
+
+    def __init__(self, fail_on_call: int | None = None):
+        self.calls = 0
+        self.fail_on_call = fail_on_call
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        self.calls += 1
+        if self.fail_on_call is not None and self.calls == self.fail_on_call:
+            raise RuntimeError("fake embedding failure")
+        return [unit(zlib.crc32(t.encode())) for t in texts]
