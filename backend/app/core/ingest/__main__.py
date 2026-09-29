@@ -19,6 +19,7 @@ def main(argv: list[str] | None = None) -> None:
         report = sync_folder(
             session, args.root, OpenAIEmbedder.from_settings(settings),
             max_chars=settings.chunk_max_chars, overlap=settings.chunk_overlap, prune=args.prune,
+            strategy=settings.chunk_strategy,
         )
     print(report.summary())
 
