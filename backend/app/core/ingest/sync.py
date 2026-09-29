@@ -10,8 +10,11 @@ from sqlalchemy.orm import Session
 from app.core.embeddings import Embedder
 from app.core.ingest.chunking import STRATEGIES, build_chunks
 from app.core.ingest.clean import clean_pages
-from app.core.ingest.pdf import extract_pages
+from app.core.ingest.markdown import extract_markdown
+from app.core.ingest.pdf import Page, extract_pages
 from app.db.models import Chunk, Document
+
+SUFFIXES = (".pdf", ".md")
 
 
 @dataclass(frozen=True)
@@ -45,7 +48,7 @@ def discover(root: Path) -> list[SourceFile]:
     files: list[SourceFile] = []
     misplaced: list[str] = []
     for p in sorted(root.rglob("*")):
-        if not p.is_file() or p.suffix.lower() != ".pdf":
+        if not p.is_file() or p.suffix.lower() not in SUFFIXES:
             continue
         rel = p.relative_to(root)
         parts = rel.parts
@@ -59,15 +62,21 @@ def discover(root: Path) -> list[SourceFile]:
             misplaced.append(rel.as_posix())
     if misplaced:
         raise ValueError(
-            "위치가 잘못된 PDF (academic/… 또는 major/<과목코드>/…): " + ", ".join(misplaced)
+            "위치가 잘못된 자료 파일 (academic/… 또는 major/<과목코드>/…): " + ", ".join(misplaced)
         )
     return files
+
+
+def load_pages(path: Path) -> list[Page]:
+    if path.suffix.lower() == ".md":
+        return extract_markdown(path)
+    return clean_pages(extract_pages(path))  # 머리글·꼬리말·쪽번호 제거
 
 
 def _guard_against_wipe(root: Path, sources: list[SourceFile], existing: dict[str, Document]) -> None:
     """--prune 없이는 자료 폴더가 통째로 비었거나 스코프 폴더가 사라진 상태로 색인을 지우지 않는다."""
     if not sources and existing:
-        raise ValueError("자료 폴더에 PDF가 없습니다 — 전체 삭제하려면 --prune")
+        raise ValueError("자료 폴더에 파일이 없습니다 — 전체 삭제하려면 --prune")
     for scope in ("academic", "major"):
         if not (root / scope).is_dir() and any(d.scope == scope for d in existing.values()):
             raise ValueError(f"{root / scope} 폴더가 없습니다 — 해당 스코프 문서를 모두 삭제하려면 --prune")
@@ -93,7 +102,7 @@ def sync_folder(
             if old is not None and (old.sha256, old.scope, old.course_code) == (sha, sf.scope, sf.course_code):
                 report.unchanged.append(sf.rel_path)
                 continue
-            pages = clean_pages(extract_pages(sf.abs_path))  # 머리글·꼬리말·쪽번호 제거
+            pages = load_pages(sf.abs_path)
             drafts = build_chunks(pages, strategy=strategy, max_chars=max_chars, overlap=overlap)
             vectors = embedder.embed([d.text for d in drafts]) if drafts else []
             if old is not None:
