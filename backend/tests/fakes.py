@@ -3,8 +3,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from fpdf import FPDF
+from sqlalchemy.orm import Session
 
-from app.db.models import EMBEDDING_DIM
+from app.db.models import EMBEDDING_DIM, Chunk, Document
 
 
 def unit(i: int) -> list[float]:
@@ -39,3 +40,14 @@ class FakeEmbedder:
         if self.fail_on_call is not None and self.calls == self.fail_on_call:
             raise RuntimeError("fake embedding failure")
         return [unit(zlib.crc32(t.encode())) for t in texts]
+
+
+def seed_chunks(session: Session, specs: Sequence[tuple[str, str, str | None, int]]) -> None:
+    """(path, scope, course_code, axis)마다 문서 1개·조각 1개를 넣는다. 조각 임베딩은 unit(axis)."""
+    for path, scope, course, axis in specs:
+        doc = Document(scope=scope, course_code=course, path=path, sha256="0" * 64)
+        session.add(doc)
+        session.flush()
+        session.add(Chunk(document_id=doc.id, page=1, section=None, ord=0, text=f"{path} 본문",
+                          embedding=unit(axis), scope=scope, course_code=course))
+    session.flush()
