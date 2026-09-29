@@ -84,3 +84,10 @@ def test_non_pdf_files_are_ignored(session, root):
     (root / "academic" / ".DS_Store").write_bytes(b"x")
     report = sync_folder(session, root, FakeEmbedder(), **OPTS)
     assert len(report.added) == 3
+
+
+def test_missing_root_rejected_before_any_change(session, root):
+    sync_folder(session, root, FakeEmbedder(), **OPTS)
+    with pytest.raises(ValueError, match="자료 폴더"):
+        sync_folder(session, root / "nope", FakeEmbedder(), **OPTS)
+    assert session.execute(select(func.count()).select_from(Document)).scalar_one() == 3

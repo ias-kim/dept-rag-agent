@@ -39,6 +39,8 @@ class SyncReport:
 
 
 def discover(root: Path) -> list[SourceFile]:
+    if not root.is_dir():
+        raise ValueError(f"자료 폴더가 없습니다: {root}")
     files: list[SourceFile] = []
     misplaced: list[str] = []
     for p in sorted(root.rglob("*")):
