@@ -57,3 +57,18 @@ def test_merge_hits_dedupes_keeps_best_score_and_limits():
     hits = [make_hit(1, score=0.5), make_hit(2, score=0.9), make_hit(1, score=0.8), make_hit(3, score=0.7)]
     merged = merge_hits(hits, k=2)
     assert [(h.chunk_id, h.score) for h in merged] == [(2, 0.9), (1, 0.8)]
+
+
+@pytest.mark.anyio
+async def test_question_is_embedded_once_for_all_tools(session):
+    seed_chunks(session, CORPUS)
+    calls = []
+
+    def embed(q):
+        calls.append(q)
+        return unit(0)
+
+    d = deps(session, FakeLLM("답"))
+    d = PipelineDeps(session=d.session, embed_query=embed, llm=d.llm, settings=d.settings)
+    await answer_question("스택이 뭐야?", user("CS101"), d)  # 학사 + 전공 = 도구 2개
+    assert calls == ["스택이 뭐야?"]

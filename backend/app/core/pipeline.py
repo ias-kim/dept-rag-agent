@@ -34,7 +34,15 @@ def merge_hits(hits: Sequence[ChunkHit], *, k: int) -> list[ChunkHit]:
 
 async def answer_question(question: str, user: UserContext, deps: PipelineDeps) -> Answer:
     s = deps.settings
-    server = build_server(user, deps.session, deps.embed_query, k=s.search_k, min_score=s.search_min_score)
+    cache: dict[str, Sequence[float]] = {}
+
+    def embed_once(query: str) -> Sequence[float]:
+        # 도구가 여러 개여도 질문 임베딩은 한 번만 (설계 §5)
+        if query not in cache:
+            cache[query] = deps.embed_query(query)
+        return cache[query]
+
+    server = build_server(user, deps.session, embed_once, k=s.search_k, min_score=s.search_min_score)
     hits: list[ChunkHit] = []
     async with connect(server) as client:
         listed = await client.list_tools()
