@@ -57,6 +57,7 @@ def test_deleted_file_removes_chunks(session, root):
     report = sync_folder(session, root, FakeEmbedder(), **OPTS)
     assert report.removed == ["academic/calendar.pdf"]
     assert chunk_count(session, "academic/calendar.pdf") == 0
+    assert session.scalars(select(Document).where(Document.path == "academic/calendar.pdf")).first() is None
 
 
 def test_empty_pdf_is_reported(session, root):
@@ -91,3 +92,41 @@ def test_missing_root_rejected_before_any_change(session, root):
     with pytest.raises(ValueError, match="자료 폴더"):
         sync_folder(session, root / "nope", FakeEmbedder(), **OPTS)
     assert session.execute(select(func.count()).select_from(Document)).scalar_one() == 3
+
+
+def doc_count(session):
+    return session.execute(select(func.count()).select_from(Document)).scalar_one()
+
+
+def test_empty_root_rejected_without_prune(session, root, tmp_path_factory):
+    sync_folder(session, root, FakeEmbedder(), **OPTS)
+    empty = tmp_path_factory.mktemp("empty")
+    with pytest.raises(ValueError, match="--prune"):
+        sync_folder(session, empty, FakeEmbedder(), **OPTS)
+    assert doc_count(session) == 3
+
+
+def test_missing_major_folder_rejected_without_prune(session, root):
+    import shutil
+
+    sync_folder(session, root, FakeEmbedder(), **OPTS)
+    shutil.rmtree(root / "major")
+    with pytest.raises(ValueError, match="major.*--prune"):
+        sync_folder(session, root, FakeEmbedder(), **OPTS)
+    assert doc_count(session) == 3
+
+
+def test_prune_allows_wiping_everything(session, root, tmp_path_factory):
+    sync_folder(session, root, FakeEmbedder(), **OPTS)
+    empty = tmp_path_factory.mktemp("empty")
+    report = sync_folder(session, empty, FakeEmbedder(), prune=True, **OPTS)
+    assert len(report.removed) == 3
+    assert doc_count(session) == 0
+
+
+def test_dotfile_pdf_is_skipped(session, root):
+    (root / "academic" / "._lec.pdf").write_bytes(b"garbage")
+    (root / ".hidden").mkdir()
+    (root / ".hidden" / "x.pdf").write_bytes(b"garbage")
+    report = sync_folder(session, root, FakeEmbedder(), **OPTS)
+    assert len(report.added) == 3

@@ -48,6 +48,8 @@ def discover(root: Path) -> list[SourceFile]:
             continue
         rel = p.relative_to(root)
         parts = rel.parts
+        if any(part.startswith(".") for part in parts):  # ._x.pdf, .hidden/ 등
+            continue
         if parts[0] == "academic":
             files.append(SourceFile(rel.as_posix(), p, "academic", None))
         elif parts[0] == "major" and len(parts) >= 3:
@@ -61,11 +63,24 @@ def discover(root: Path) -> list[SourceFile]:
     return files
 
 
-def sync_folder(session: Session, root: Path, embedder: Embedder, *, max_chars: int, overlap: int) -> SyncReport:
+def _guard_against_wipe(root: Path, sources: list[SourceFile], existing: dict[str, Document]) -> None:
+    """--prune 없이는 자료 폴더가 통째로 비었거나 스코프 폴더가 사라진 상태로 색인을 지우지 않는다."""
+    if not sources and existing:
+        raise ValueError("자료 폴더에 PDF가 없습니다 — 전체 삭제하려면 --prune")
+    for scope in ("academic", "major"):
+        if not (root / scope).is_dir() and any(d.scope == scope for d in existing.values()):
+            raise ValueError(f"{root / scope} 폴더가 없습니다 — 해당 스코프 문서를 모두 삭제하려면 --prune")
+
+
+def sync_folder(
+    session: Session, root: Path, embedder: Embedder, *, max_chars: int, overlap: int, prune: bool = False
+) -> SyncReport:
     sources = discover(root)  # 잘못된 위치면 여기서 끝 — DB 변경 없음
     report = SyncReport()
     try:
         existing = {d.path: d for d in session.scalars(select(Document))}
+        if not prune:
+            _guard_against_wipe(root, sources, existing)
         seen: set[str] = set()
         for sf in sources:
             seen.add(sf.rel_path)
