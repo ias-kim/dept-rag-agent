@@ -1,11 +1,12 @@
 import csv
 import json
+from datetime import date
 
 import pytest
 
 from app.core.answer import Answer, Source
 from evaluation.dataset import EvalItem, GoldSource
-from evaluation.run import evaluate_item, run_items, write_run
+from evaluation.run import evaluate_item, prepare_run, require_frozen, run_items, write_run
 from tests.fakes import make_hit
 
 ITEM = EvalItem("A01", "정정 기간?", "academic", (GoldSource("academic/a.pdf", 2),), ("9월 8일",))
@@ -49,3 +50,36 @@ def test_write_run_refuses_to_overwrite_existing_run(tmp_path):
     with pytest.raises(FileExistsError, match="LABEL"):
         write_run([rec], {"label": "baseline"}, tmp_path, "same")
     assert grading_path.read_bytes() == before
+
+
+TODAY = date(2026, 10, 1)
+
+
+def test_prepare_run_returns_name(tmp_path):
+    assert prepare_run("baseline", tmp_path, "abc1234", TODAY) == "2026-10-01-baseline-abc1234"
+
+
+@pytest.mark.parametrize("label", ["", "a b", "a/b", "../x", "베이스 라인"])
+def test_prepare_run_rejects_bad_label(tmp_path, label):
+    with pytest.raises(ValueError, match="label"):
+        prepare_run(label, tmp_path, "abc1234", TODAY)
+
+
+def test_prepare_run_rejects_existing_outputs(tmp_path):
+    name = "2026-10-01-baseline-abc1234"
+    (tmp_path / "runs").mkdir()
+    (tmp_path / "runs" / f"{name}.jsonl").write_text("", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        prepare_run("baseline", tmp_path, "abc1234", TODAY)
+    (tmp_path / "runs" / f"{name}.jsonl").unlink()
+    (tmp_path / "grading").mkdir()
+    (tmp_path / "grading" / f"{name}.csv").write_text("", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        prepare_run("baseline", tmp_path, "abc1234", TODAY)
+
+
+def test_require_frozen_needs_frozen_file(tmp_path):
+    q = tmp_path / "questions.yaml"
+    q.write_text("- id: A\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="make eval-freeze"):
+        require_frozen(q, tmp_path / "FROZEN")

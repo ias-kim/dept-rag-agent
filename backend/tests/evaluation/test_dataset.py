@@ -174,3 +174,16 @@ def test_none_intent_omitted_lists(tmp_path):
     assert items[0].intent == "none"
     assert items[0].gold_sources == ()
     assert items[0].key_points == ()
+
+
+def test_freeze_refuses_overwrite_without_force(tmp_path):
+    q = write(tmp_path, VALID)
+    freeze(q, tmp_path / "FROZEN")
+    with pytest.raises(FileExistsError, match="--force"):
+        freeze(q, tmp_path / "FROZEN")
+    assert freeze(q, tmp_path / "FROZEN", force=True)
+
+
+def test_bool_page_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match="page"):
+        load_items(write(tmp_path, VALID.replace("page: 2", "page: true")))

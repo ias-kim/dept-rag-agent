@@ -7,11 +7,12 @@
 import argparse
 import csv
 import json
+import re
 import subprocess
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import anyio
@@ -25,10 +26,38 @@ from app.core.pipeline import PipelineDeps, answer_question
 from app.db.models import Document
 from app.db.session import make_engine
 from app.mcp.server import UserContext
-from evaluation.dataset import FROZEN, QUESTIONS, REPO_ROOT, EvalItem, check_frozen, load_items
+from evaluation.dataset import (
+    FROZEN,
+    QUESTIONS,
+    REPO_ROOT,
+    EvalItem,
+    check_frozen,
+    load_items,
+    sha256_of,
+)
 from evaluation.metrics import none_handled, rate, recall_at_k, source_match
 
 GRADING_FIELDS = ["id", "question", "answer", "key_points", "key_points_ok", "no_hallucination", "note"]
+
+
+LABEL_RE = re.compile(r"^[\w-]+$")
+
+
+def prepare_run(label: str, out_dir: Path, commit: str, today: date) -> str:
+    """유료 호출 전에 LABEL과 출력 이름 충돌을 검사한다. 이름을 돌려준다."""
+    if not LABEL_RE.fullmatch(label):
+        raise ValueError(f"label은 영문·숫자·_·- 만 가능: {label!r}")
+    name = f"{today.isoformat()}-{label}-{commit}"
+    for existing in (out_dir / "runs" / f"{name}.jsonl", out_dir / "grading" / f"{name}.csv"):
+        if existing.exists():
+            raise FileExistsError(f"{existing} 이미 있음 — 다른 LABEL을 쓰세요 (예: baseline-2)")
+    return name
+
+
+def require_frozen(questions: Path, frozen: Path) -> None:
+    if not frozen.exists():
+        raise ValueError("평가셋을 먼저 동결하세요: make eval-freeze")
+    check_frozen(questions, frozen)
 
 
 def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
@@ -89,19 +118,20 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m evaluation.run")
     parser.add_argument("--label", required=True)
     args = parser.parse_args(argv)
+    commit = _commit()
+    name = prepare_run(args.label, REPO_ROOT / "eval", commit, datetime.now().astimezone().date())
     items = load_items(QUESTIONS)
-    check_frozen(QUESTIONS, FROZEN)
+    require_frozen(QUESTIONS, FROZEN)
     settings = get_settings()
     embedder = OpenAIEmbedder.from_settings(settings)
     llm = make_llm(settings)
-    name = f"{datetime.now().astimezone().date().isoformat()}-{args.label}-{_commit()}"
     with Session(make_engine()) as session:
         # 평가 전용 계정: 모든 과목 수강 (설계 §5 — 의도 측정이 권한에 섞이지 않게)
         courses = frozenset(c for c in session.scalars(select(Document.course_code).distinct()) if c)
         deps = PipelineDeps(session=session, embed_query=lambda q: embedder.embed([q])[0], llm=llm, settings=settings)
         user = UserContext(user_id=0, courses=courses)
         records = anyio.run(run_items, items, lambda q: answer_question(q, user, deps))
-    meta = {"label": args.label, "commit": _commit(), "prompt_hash": prompt_hash(),
+    meta = {"label": args.label, "commit": commit, "eval_set_sha256": sha256_of(QUESTIONS), "prompt_hash": prompt_hash(),
             "model": settings.generation_model, "effort": settings.generation_effort,
             "k": settings.search_k, "min_score": settings.search_min_score, "n": len(records)}
     _, grading_path = write_run(records, meta, REPO_ROOT / "eval", name)

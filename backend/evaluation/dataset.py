@@ -65,7 +65,7 @@ def _item(raw: dict, index: int) -> EvalItem:
             raise ValueError(f"{label}: gold_sources의 file이 필요함")
 
         page = g.get("page")
-        if not isinstance(page, int) or page < 1:
+        if not isinstance(page, int) or isinstance(page, bool) or page < 1:
             raise ValueError(f"{label}: gold_sources의 page는 1 이상의 정수")
 
         # Normalize file to NFC
@@ -120,7 +120,9 @@ def check_frozen(questions: Path, frozen: Path) -> None:
         raise ValueError("평가셋이 동결 이후 변경됨 — 비교표가 성립하지 않음 (eval/README.md 참고)")
 
 
-def freeze(questions: Path, frozen: Path) -> str:
+def freeze(questions: Path, frozen: Path, force: bool = False) -> str:
+    if frozen.exists() and not force:
+        raise FileExistsError(f"{frozen} 이미 있음 — 다시 동결하려면 --force")
     digest = sha256_of(questions)
     frozen.write_text(digest + "\n", encoding="utf-8")
     return digest
@@ -129,10 +131,11 @@ def freeze(questions: Path, frozen: Path) -> str:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="python -m evaluation.dataset")
     parser.add_argument("--freeze", action="store_true")
+    parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     items = load_items(QUESTIONS)
     if args.freeze:
-        print(f"동결: {len(items)}문항, sha256 {freeze(QUESTIONS, FROZEN)}")
+        print(f"동결: {len(items)}문항, sha256 {freeze(QUESTIONS, FROZEN, force=args.force)}")
     else:
         check_frozen(QUESTIONS, FROZEN)
         print(f"검증 통과: {len(items)}문항")
