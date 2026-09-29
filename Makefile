@@ -4,7 +4,7 @@
 VENV ?= backend/.venv
 PY   ?= $(VENV)/bin/python
 
-.PHONY: setup lint lint-py lint-fe test generate check smoke db-up migrate ingest eval eval-freeze eval-report
+.PHONY: setup lint lint-py lint-fe test generate check smoke db-up migrate ingest eval eval-freeze eval-report chunk-compare
 
 setup:
 	@if [ -x $(PY) ] && ! $(PY) -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))'; then \
@@ -53,3 +53,7 @@ eval-freeze:
 
 eval-report:
 	PYTHONPATH=backend $(PY) -m evaluation.report
+
+# 분할 전략 비교 (API 호출 없음) → docs/generated/chunk-comparison.md
+chunk-compare:
+	PYTHONPATH=backend $(PY) -m evaluation.chunk_compare
