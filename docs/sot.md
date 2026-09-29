@@ -6,7 +6,7 @@
 |---|---|---|---|
 | API 계약 | `backend/app/` FastAPI 라우트·Pydantic 모델 | `docs/generated/openapi.json` | `make generate` + `tests/test_openapi_snapshot.py` (게이트 1) |
 | 청크 메타데이터 스키마 (`source`·`page`·`section`·`scope`·`course`) | **2주차 확정 예정** — `backend/app/db/` 스키마 모델 (경로 확정 시 갱신) | 출처 표시, 검색 필터, 평가셋 | 확정 후 스키마 스냅샷 테스트 추가 (확실하지 않음) |
-| DB 구조 | **미정** — 마이그레이션 도구 선택 전. 선택 시 ADR 작성 | pgvector 테이블 | 확정 후 추가 |
+| DB 구조 | Alembic 마이그레이션 (M1에서 생성, 설계 §3) | pgvector 테이블 | M1에서 추가 |
 | 계층 의존 규칙 | `ARCHITECTURE.md` | `tests/structural/test_layers.py` | 구조 테스트 (게이트 1) |
 | 도구 노출·접근 권한 정책 | `ARCHITECTURE.md` "권한 두 겹" (6주차 권한 설계 문서로 이관) | `app/mcp` 노출 필터, `app/db` 조회 필터 | reviewer 서브에이전트 (게이트 2) |
 | 환경 설정 키 목록 | `.env.example` | README 설정 설명 | 링크만 |
@@ -15,3 +15,4 @@
 | 위험 경로 목록 | `docs/harness/risk-paths.txt` | CI 경고, profile 설명 | CI가 직접 읽음 |
 | TIL 경로 규칙 | `tests/structural/test_til_layout.py` | README "TIL 규칙" | 구조 테스트 (게이트 1) |
 | 설계 결정 | `docs/adr/*.md` | AGENTS.md는 링크만 | - |
+| 시스템 설계 (흐름·데이터·권한·평가·배포·순서) | `docs/design/2026-09-28-system-design.md` | exec-plan, ADR, ARCHITECTURE.md | reviewer (게이트 2) |
