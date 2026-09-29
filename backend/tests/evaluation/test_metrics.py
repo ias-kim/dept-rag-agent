@@ -1,3 +1,5 @@
+import unicodedata
+
 from app.core.answer import Source
 from evaluation.dataset import EvalItem, GoldSource
 from evaluation.metrics import none_handled, rate, recall_at_k, source_match
@@ -28,3 +30,27 @@ def test_none_handled():
 def test_rate_ignores_none():
     assert rate([True, False, None, True]) == 2 / 3
     assert rate([None]) is None
+
+
+def test_recall_at_k_with_nfc_normalization():
+    # gold stored as NFC, but hit source is NFD-encoded
+    nfc_file = "academic/학사일정.pdf"
+    nfd_file = unicodedata.normalize("NFD", nfc_file)
+
+    item = EvalItem("A01", "q", "academic", (GoldSource(nfc_file, 2),), ("k",))
+
+    # hit source is NFD-encoded, but should match NFC gold via normalization
+    retrieved = [make_hit(1, nfd_file, 2)]
+    assert recall_at_k(item, retrieved) is True
+
+
+def test_source_match_with_nfc_normalization():
+    # gold stored as NFC, but source file is NFD-encoded
+    nfc_file = "academic/학사일정.pdf"
+    nfd_file = unicodedata.normalize("NFD", nfc_file)
+
+    item = EvalItem("A01", "q", "academic", (GoldSource(nfc_file, 2),), ("k",))
+
+    # source file is NFD-encoded, but should match NFC gold via normalization
+    sources = [Source(nfd_file, 2, None)]
+    assert source_match(item, sources) is True

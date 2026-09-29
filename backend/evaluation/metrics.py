@@ -1,5 +1,6 @@
 """자동 지표 3종 + none 처리. 사람 채점(답변 정확도)은 report.py가 grading CSV에서 읽는다."""
 
+import unicodedata
 from collections.abc import Iterable, Sequence
 
 from app.core.answer import Source
@@ -14,13 +15,23 @@ def _gold(item: EvalItem) -> set[tuple[str, int]]:
 def recall_at_k(item: EvalItem, retrieved: Sequence[ChunkHit]) -> bool | None:
     if item.intent == "none":
         return None
-    return any((h.source, h.page) in _gold(item) for h in retrieved)
+    gold = _gold(item)
+    for h in retrieved:
+        normalized_source = unicodedata.normalize("NFC", h.source)
+        if (normalized_source, h.page) in gold:
+            return True
+    return False
 
 
 def source_match(item: EvalItem, sources: Sequence[Source]) -> bool | None:
     if item.intent == "none":
         return None
-    return any((s.file, s.page) in _gold(item) for s in sources)
+    gold = _gold(item)
+    for s in sources:
+        normalized_file = unicodedata.normalize("NFC", s.file)
+        if (normalized_file, s.page) in gold:
+            return True
+    return False
 
 
 def none_handled(item: EvalItem, sources: Sequence[Source]) -> bool | None:

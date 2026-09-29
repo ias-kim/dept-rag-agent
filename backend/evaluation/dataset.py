@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,20 +30,52 @@ class EvalItem:
 
 
 def _item(raw: dict, index: int) -> EvalItem:
-    label = str(raw.get("id") or f"#{index}")
+    if not isinstance(raw, dict):
+        raise ValueError(f"#{index}: 항목이 매핑이어야 함")  # noqa: TRY004
+
+    # id 검증 (필수, 비어있지 않은 문자열)
+    item_id = raw.get("id")
+    if item_id is None:
+        raise ValueError(f"#{index}: id가 필요함")
+    if not isinstance(item_id, str) or not item_id:
+        raise ValueError(f"#{index}: id는 비어있지 않은 문자열이어야 함")
+
+    label = item_id
     question = str(raw.get("question") or "").strip()
     intent = raw.get("intent")
     if not question:
         raise ValueError(f"{label}: question이 비어 있음")
     if intent not in INTENTS:
         raise ValueError(f"{label}: intent는 {sorted(INTENTS)} 중 하나")
+
+    # gold_sources 검증
+    gold_sources_raw = raw.get("gold_sources")
+    if not isinstance(gold_sources_raw, list):
+        raise ValueError(f"{label}: gold_sources는 목록이어야 함")  # noqa: TRY004
+
     gold = []
-    for g in raw.get("gold_sources") or []:
+    for g in gold_sources_raw:
+        if not isinstance(g, dict):
+            raise ValueError(f"{label}: gold_sources의 각 항목은 매핑이어야 함")  # noqa: TRY004
+
+        file_val = g.get("file")
+        if file_val is None or not isinstance(file_val, str) or not file_val:
+            raise ValueError(f"{label}: gold_sources의 file이 필요함")
+
         page = g.get("page")
         if not isinstance(page, int) or page < 1:
             raise ValueError(f"{label}: gold_sources의 page는 1 이상의 정수")
-        gold.append(GoldSource(str(g["file"]), page))
-    key_points = tuple(str(k) for k in raw.get("key_points") or [])
+
+        # Normalize file to NFC
+        normalized_file = unicodedata.normalize("NFC", file_val)
+        gold.append(GoldSource(normalized_file, page))
+
+    # key_points 검증
+    key_points_raw = raw.get("key_points")
+    if not isinstance(key_points_raw, list):
+        raise ValueError(f"{label}: key_points는 목록이어야 함")  # noqa: TRY004
+    key_points = tuple(str(k) for k in key_points_raw)
+
     if intent == "none" and gold:
         raise ValueError(f"{label}: intent none에는 gold_sources를 두지 않음")
     if intent != "none" and not gold:
@@ -53,7 +86,12 @@ def _item(raw: dict, index: int) -> EvalItem:
 
 
 def load_items(path: Path) -> list[EvalItem]:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or []
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    # 최상위가 목록이어야 함
+    if not isinstance(raw, list):
+        raise ValueError("평가셋 최상위는 목록이어야 함")  # noqa: TRY004
+
     items = [_item(r, i) for i, r in enumerate(raw)]
     ids = [it.id for it in items]
     dupes = sorted({i for i in ids if ids.count(i) > 1})

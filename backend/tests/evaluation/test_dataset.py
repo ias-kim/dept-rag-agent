@@ -42,6 +42,77 @@ def test_invalid_items_rejected(tmp_path, bad, message):
         load_items(write(tmp_path, bad))
 
 
+@pytest.mark.parametrize("bad, message", [
+    ("key: value", "최상위"),  # 최상위가 매핑
+    ("[1, 2, 3]", "#0"),  # 목록 항목이 매핑이 아님 (인덱스 명시)
+    ("""
+- id: A01
+  question: q
+  intent: academic
+  gold_sources: invalid
+  key_points: [k]
+""", "gold_sources"),  # gold_sources가 목록이 아님
+    ("""
+- id: A01
+  question: q
+  intent: academic
+  gold_sources: [invalid]
+  key_points: [k]
+""", "A01"),  # gold entry가 매핑이 아님
+    ("""
+- id: A01
+  question: q
+  intent: academic
+  gold_sources: [{page: 1}]
+  key_points: [k]
+""", "file이 필요함"),  # gold entry의 file 누락
+    ("""
+- id: A01
+  question: q
+  intent: academic
+  gold_sources: [{file: "", page: 1}]
+  key_points: [k]
+""", "file이 필요함"),  # gold entry의 file 빈 문자열
+    ("""
+- id: A01
+  question: q
+  intent: academic
+  gold_sources: [{file: 5, page: 1}]
+  key_points: [k]
+""", "file"),  # gold entry의 file이 비문자열
+    ("""
+- question: q
+  intent: academic
+  gold_sources: [{file: a.pdf, page: 1}]
+  key_points: [k]
+""", "id"),  # id 누락
+    ("""
+- id: ""
+  question: q
+  intent: academic
+  gold_sources: [{file: a.pdf, page: 1}]
+  key_points: [k]
+""", "id"),  # id 빈 문자열
+    ("""
+- id: 5
+  question: q
+  intent: academic
+  gold_sources: [{file: a.pdf, page: 1}]
+  key_points: [k]
+""", "id"),  # id가 숫자
+    ("""
+- id: A01
+  question: q
+  intent: academic
+  gold_sources: [{file: a.pdf, page: 1}]
+  key_points: 9월 8일
+""", "key_points"),  # key_points가 스칼라
+])
+def test_input_validation_rejects(tmp_path, bad, message):
+    with pytest.raises(ValueError, match=message):
+        load_items(write(tmp_path, bad))
+
+
 def test_check_frozen_passes_when_unfrozen_or_matching(tmp_path):
     q = write(tmp_path, VALID)
     check_frozen(q, tmp_path / "FROZEN")  # FROZEN 없음 → 통과
