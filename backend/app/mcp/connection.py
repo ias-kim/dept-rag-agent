@@ -32,7 +32,7 @@ async def connect(server: Server) -> AsyncIterator[ClientSession]:
             inner = inner.exceptions[0]
         if inner is group:
             raise
-        raise inner from None
+        raise inner from group
 
 
 def parse_hits(result: types.CallToolResult) -> list[ChunkHit]:
