@@ -1,4 +1,5 @@
 from app.core.answer import (
+    EMPTY,
     FALLBACK_BETA,
     NO_EVIDENCE,
     REFUSED,
@@ -57,3 +58,18 @@ def test_request_shape():
 
 def test_prompt_hash_is_stable_short_hex():
     assert prompt_hash() == prompt_hash() and len(prompt_hash()) == 12
+
+
+def test_truncated_answer_is_flagged():
+    llm = FakeLLM(text="답[C1]", stop_reason="max_tokens")
+    answer = generate_answer(llm, "q", [make_hit(1)], **OPTS)
+    assert answer.text == "답[1]"
+    assert answer.notices == ["truncated"]
+    assert answer.citation_ok is True
+
+
+def test_empty_response_is_flagged():
+    answer = generate_answer(FakeLLM(text="   "), "q", [make_hit(1)], **OPTS)
+    assert answer.text == EMPTY
+    assert answer.sources == []
+    assert answer.notices == ["empty"]

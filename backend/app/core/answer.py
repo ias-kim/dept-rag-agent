@@ -6,7 +6,7 @@
 import hashlib
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +20,7 @@ CITATION_RE = re.compile(r"\[C(\d+)\]")
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 NO_EVIDENCE = "관련 자료를 찾지 못했습니다. 질문을 조금 더 구체적으로 해 주세요."
 REFUSED = "이 질문에는 답변할 수 없습니다."
+EMPTY = "답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요."
 
 
 @dataclass(frozen=True)
@@ -96,4 +97,9 @@ def generate_answer(llm: Any, question: str, hits: Sequence[ChunkHit], *, model:
     if response.stop_reason == "refusal":
         return Answer(text=REFUSED, sources=[], citation_ok=True, notices=["refused"], retrieved=list(hits))
     raw = "".join(block.text for block in response.content if block.type == "text")
-    return verify_citations(raw, hits)
+    if not raw.strip():
+        return Answer(text=EMPTY, sources=[], citation_ok=True, notices=["empty"], retrieved=list(hits))
+    answer = verify_citations(raw, hits)
+    if response.stop_reason == "max_tokens":
+        answer = replace(answer, notices=answer.notices + ["truncated"])
+    return answer
