@@ -9,12 +9,14 @@
 |---|---|---|
 | 설치 | `make setup` | Python **3.12** 고정(uv 필요), 프론트 `npm ci` |
 | 린트 | `make lint` | ruff(backend) + oxlint(frontend) |
-| 테스트 | `make test` | pytest, 구조 테스트 포함 |
+| DB 기동 | `make db-up` | `make test`/`make check` 전에 필요 · 로컬 포트 5433 (CI는 서비스 컨테이너) |
+| 테스트 | `make test` | pytest, 구조 테스트 포함 · DB 필요 |
 | 생성 | `make generate` | 파생물 재생성 → `docs/generated/` |
 | **게이트 1 전체** | `make check` | CI와 동일. 끝내기 전에 반드시 통과 |
+| 적재 | `make migrate && make ingest` | `data/academic/…`, `data/major/<과목코드>/…` PDF |
 | 스모크 | `make smoke` | 서버 실행 중 `/health` 확인 |
 
-서버 실행: `cd backend && .venv/bin/uvicorn app.main:app --reload` · DB: `docker compose -f docker/docker-compose.yml up -d`
+서버 실행: `cd backend && .venv/bin/uvicorn app.main:app --reload`
 
 ## 계층 규칙 (강제됨)
 
@@ -26,7 +28,7 @@
 1. **권한은 두 겹** — 도구 노출 필터 + 검색 조회(SQL) 필터. 조회 필터 없는 검색 코드는 병합 금지.
 2. **MCP 도구는 읽기 전용.** 쓰기·삭제 도구 추가 금지.
 3. **`docs/generated/`는 손으로 고치지 않는다.** 소스를 고치고 `make generate`.
-4. **`.env`는 읽지 않는다.** 실제 키가 있다. 설정 목록은 `.env.example`.
+4. **에이전트는 `.env`를 열거나 출력하지 않는다.** 실제 키가 있다. 앱은 런타임에 `Settings`로 읽는다(`app/core/config.py`). 설정 목록은 `.env.example`.
 5. **TIL은 `til/{이름}/{YYYY-MM-DD}.md`.** 구조 테스트가 검사한다.
 
 ## 작업 흐름
