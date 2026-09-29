@@ -1,0 +1,89 @@
+import csv
+import json
+
+import pytest
+
+from evaluation.report import build_report, load_grading, summarize
+
+
+def make_run(out, name, records, meta, grading_rows=None):
+    (out / "runs").mkdir(parents=True, exist_ok=True)
+    (out / "runs" / f"{name}.jsonl").write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    (out / "runs" / f"{name}.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    if grading_rows is not None:
+        (out / "grading").mkdir(parents=True, exist_ok=True)
+        with (out / "grading" / f"{name}.csv").open("w", encoding="utf-8-sig", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["id", "key_points_ok", "no_hallucination"])
+            w.writeheader()
+            w.writerows(grading_rows)
+
+
+RECORDS = [
+    {"id": "A01", "recall_at_k": True, "source_match": True, "none_handled": None, "citation_ok": True, "latency_ms": 100},
+    {"id": "A02", "recall_at_k": False, "source_match": False, "none_handled": None, "citation_ok": False, "latency_ms": 300},
+    {"id": "N01", "recall_at_k": None, "source_match": None, "none_handled": True, "citation_ok": True, "latency_ms": 200},
+]
+
+
+def test_load_grading_requires_both_marks(tmp_path):
+    make_run(tmp_path, "r", RECORDS, {}, [
+        {"id": "A01", "key_points_ok": "O", "no_hallucination": "O"},
+        {"id": "A02", "key_points_ok": "O", "no_hallucination": "X"},
+        {"id": "N01", "key_points_ok": "", "no_hallucination": ""},
+    ])
+    assert load_grading(tmp_path / "grading" / "r.csv") == {"A01": True, "A02": False, "N01": None}
+
+
+def test_summarize_rates():
+    s = summarize({"label": "baseline"}, RECORDS, {"A01": True, "A02": False, "N01": None})
+    assert s["n"] == 3 and s["recall_at_k"] == 0.5 and s["source_match"] == 0.5
+    assert s["none_handled"] == 1.0 and s["answer_accuracy"] == 0.5 and s["graded"] == 2
+    assert s["latency_p50_ms"] == 200
+
+
+def test_build_report_is_deterministic_and_marks_ungraded(tmp_path):
+    make_run(tmp_path, "2026-10-01-baseline-abc", RECORDS, {"label": "baseline", "prompt_hash": "p1"})
+    first = build_report(tmp_path)
+    assert first == build_report(tmp_path)
+    assert first.startswith("<!-- DO NOT EDIT")
+    assert "2026-10-01-baseline-abc" in first and "50.0%" in first and "—" in first
+
+
+def _grading(tmp_path, rows, encoding="utf-8-sig"):
+    p = tmp_path / "g.csv"
+    with p.open("w", encoding=encoding, newline="") as f:
+        w = csv.DictWriter(f, fieldnames=["id", "key_points_ok", "no_hallucination"])
+        w.writeheader()
+        w.writerows(rows)
+    return p
+
+
+def test_load_grading_normalizes_fullwidth_marks(tmp_path):
+    p = _grading(tmp_path, [{"id": "A01", "key_points_ok": "Ｏ", "no_hallucination": "ｏ"}])
+    assert load_grading(p) == {"A01": True}
+
+
+def test_load_grading_rejects_duplicate_ids(tmp_path):
+    # 게이트 3 P2: 엑셀에서 행이 복제되면 뒤 행이 앞 채점을 조용히 덮어쓰지 않게
+    p = _grading(tmp_path, [{"id": "A01", "key_points_ok": "O", "no_hallucination": "O"},
+                            {"id": "A01", "key_points_ok": "X", "no_hallucination": "O"}])
+    with pytest.raises(ValueError, match="A01"):
+        load_grading(p)
+
+
+def test_load_grading_rejects_unknown_mark(tmp_path):
+    p = _grading(tmp_path, [{"id": "A07", "key_points_ok": "v", "no_hallucination": "O"}])
+    with pytest.raises(ValueError, match="A07"):
+        load_grading(p)
+
+
+def test_load_grading_missing_mark_columns_is_ungraded(tmp_path):
+    p = tmp_path / "g.csv"
+    p.write_text("id\nA01\n", encoding="utf-8")
+    assert load_grading(p) == {"A01": None}
+
+
+def test_load_grading_non_utf8_gives_guidance(tmp_path):
+    p = _grading(tmp_path, [{"id": "가나다", "key_points_ok": "O", "no_hallucination": "O"}], encoding="cp949")
+    with pytest.raises(ValueError, match="UTF-8"):
+        load_grading(p)

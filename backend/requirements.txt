@@ -10,6 +10,7 @@ mcp==2.2.0
 python-dotenv==1.2.3
 alembic==1.20.0
 pypdf==6.19.0
+pyyaml==6.0.3
 
 pytest==9.1.1
 httpx==0.28.1

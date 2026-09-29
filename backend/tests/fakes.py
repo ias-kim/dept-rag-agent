@@ -1,10 +1,13 @@
 import zlib
 from collections.abc import Sequence
 from pathlib import Path
+from types import SimpleNamespace
 
 from fpdf import FPDF
+from sqlalchemy.orm import Session
 
-from app.db.models import EMBEDDING_DIM
+from app.db.models import EMBEDDING_DIM, Chunk, Document
+from app.db.search import ChunkHit
 
 
 def unit(i: int) -> list[float]:
@@ -39,3 +42,37 @@ class FakeEmbedder:
         if self.fail_on_call is not None and self.calls == self.fail_on_call:
             raise RuntimeError("fake embedding failure")
         return [unit(zlib.crc32(t.encode())) for t in texts]
+
+
+def seed_chunks(session: Session, specs: Sequence[tuple[str, str, str | None, int]]) -> None:
+    """(path, scope, course_code, axis)마다 문서 1개·조각 1개를 넣는다. 조각 임베딩은 unit(axis)."""
+    for path, scope, course, axis in specs:
+        doc = Document(scope=scope, course_code=course, path=path, sha256="0" * 64)
+        session.add(doc)
+        session.flush()
+        session.add(Chunk(document_id=doc.id, page=1, section=None, ord=0, text=f"{path} 본문",
+                          embedding=unit(axis), scope=scope, course_code=course))
+    session.flush()
+
+
+def make_hit(chunk_id: int, source: str = "academic/a.pdf", page: int = 1,
+             section: str | None = None, score: float = 0.9) -> ChunkHit:
+    scope = "major" if source.startswith("major/") else "academic"
+    course = source.split("/")[1] if scope == "major" else None
+    return ChunkHit(chunk_id=chunk_id, text=f"조각 {chunk_id} 내용", source=source, page=page,
+                    section=section, scope=scope, course_code=course, score=score)
+
+
+class FakeLLM:
+    """anthropic 클라이언트 대역. beta.messages.create 호출 인자를 기록하고 정해진 답을 돌려준다."""
+
+    def __init__(self, text: str = "", stop_reason: str = "end_turn"):
+        self.calls: list[dict] = []
+        self.text = text
+        self.stop_reason = stop_reason
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls.append(kwargs)
+        content = [SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=self.text)]
+        return SimpleNamespace(stop_reason=self.stop_reason, content=content if self.stop_reason != "refusal" else [])

@@ -16,3 +16,7 @@
 | TIL 경로 규칙 | `tests/structural/test_til_layout.py` | README "TIL 규칙" | 구조 테스트 (게이트 1) |
 | 설계 결정 | `docs/adr/*.md` | AGENTS.md는 링크만 | - |
 | 시스템 설계 (흐름·데이터·권한·평가·배포·순서) | `docs/design/2026-09-28-system-design.md` | exec-plan, ADR, ARCHITECTURE.md | reviewer (게이트 2) |
+| 평가셋 | `eval/questions.yaml` (+ `eval/FROZEN`) | 평가 실행 기록, 비교표 | `tests/evaluation/test_eval_set.py` (동결 검사, 게이트 1) |
+| 채점 기준 | `eval/RUBRIC.md` | `eval/grading/*.csv` | - |
+| 답변 생성 프롬프트 | `backend/app/core/prompts/answer.md` | 평가 실행 meta의 `prompt_hash` | 실행 기록 |
+| 평가 비교표 | `eval/runs/`, `eval/grading/` (로컬) | `docs/generated/eval-comparison.md` | `make eval-report` 재생성 |

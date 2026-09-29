@@ -28,3 +28,7 @@ docker/volumes/
 
 # 원본 PDF (저작권·용량) — S3/로컬에만
 /data/
+
+# 평가 산출물 — 강의자료 원문 포함 (레포 PUBLIC). 비교표는 docs/generated/에 집계만 커밋
+/eval/runs/
+/eval/grading/

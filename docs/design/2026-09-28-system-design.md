@@ -98,7 +98,7 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 
 ## 5. 라우터와 에이전트
 
-- `ROUTER_MODE=workflow|agent` 설정으로 전환. 분류는 Haiku 계열, 생성·에이전트는 Sonnet 계열. 모델 ID는 설정값.
+- `ROUTER_MODE=workflow|agent` 설정으로 전환. 분류는 Haiku 계열, 생성·에이전트는 Sonnet 계열(생성 기본값 claude-sonnet-5-5 / effort medium, 거절 시 fallbacks "default"). 모델 ID는 설정값.
 - 프롬프트는 `backend/app/core/prompts/*.md`. 평가 실행마다 프롬프트 해시 기록.
 
 **처리 표 (`plan()`)**
@@ -120,7 +120,7 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 
 - SoT: `eval/questions.yaml` (`id, question, intent, gold_sources[{file,page}], key_points[]`). 적재한 PDF를 보며 작성.
 - 동결: 3주차 1차 측정 직전 해시를 `eval/FROZEN`에 기록, 테스트가 일치 검사.
-- `make eval MODE=…`: 전 과목 수강 **평가 전용 계정**, temperature 0. 결과 `eval/runs/<날짜>-<모드>-<커밋>.jsonl`. CI에서는 돌리지 않음(지표 함수만 단위 테스트).
+- `make eval LABEL=…`: 전 과목 수강 **평가 전용 계정**, effort 고정(설정값), 샘플링 파라미터 미사용 — Sonnet 5.5는 기본값 아닌 temperature에 400. 결과 `eval/runs/<날짜>-<라벨>-<커밋>.jsonl`. CI에서는 돌리지 않음(지표 함수만 단위 테스트).
 - 지표: 의도 정확도, recall@5, 출처 일치, none 처리(자동) / 답변 정확도(사람, `eval/grading/<run>.csv`: key_points O/X, 환각 없음 O/X). 기준은 `eval/RUBRIC.md`에 3주차 전 고정.
 - `make eval-report` → `docs/generated/eval-comparison.md`.
 

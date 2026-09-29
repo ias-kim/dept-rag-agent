@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     chunk_max_chars: int = 800
     chunk_overlap: int = 100
     data_dir: Path = Path("data")
+    anthropic_api_key: str = ""
+    generation_model: str = "claude-sonnet-5-5"
+    generation_effort: str = "medium"
+    generation_max_tokens: int = 4096
+    search_k: int = 5
+    search_min_score: float = 0.0
 
 
 @lru_cache

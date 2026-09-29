@@ -5,5 +5,6 @@
 | 파일 | 소스(SoT) | 생성기 |
 |---|---|---|
 | `openapi.json` | `backend/app/` FastAPI 라우트 | `backend/scripts/gen_openapi.py` |
+| `eval-comparison.md` | `eval/runs/`, `eval/grading/` (로컬 전용) | `backend/evaluation/report.py` (`make eval-report`) |
 
 일치 여부는 `backend/tests/test_openapi_snapshot.py`가 `make check`/CI에서 검사합니다.
