@@ -27,6 +27,8 @@ def load_grading(path: Path) -> dict[str, bool | None]:
     try:
         with path.open(encoding="utf-8-sig") as f:
             for row in csv.DictReader(f):
+                if row["id"] in result:
+                    raise ValueError(f"{path}: {row['id']}가 채점표에 두 번 이상 있음 — 중복 행을 지우세요")
                 marks = (_mark(path, row["id"], row.get("key_points_ok")),
                          _mark(path, row["id"], row.get("no_hallucination")))
                 result[row["id"]] = None if None in marks else all(marks)

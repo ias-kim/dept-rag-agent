@@ -111,3 +111,9 @@ def test_answer_without_citation_gets_notice():
 def test_cannot_answer_phrase_needs_no_citation():
     answer = generate_answer(FakeLLM(f"{CANNOT_ANSWER}."), "q", [make_hit(7)], **OPTS)
     assert answer.notices == [] and answer.citation_ok is True
+
+
+def test_cannot_answer_phrase_with_extra_claim_is_flagged():
+    # 게이트 3 P2: 거절 문구 뒤에 인용 없는 주장을 덧붙이면 면제되지 않는다
+    answer = generate_answer(FakeLLM(f"{CANNOT_ANSWER}. 실제로는 9월 1일입니다."), "q", [make_hit(7)], **OPTS)
+    assert answer.notices == ["no_citation"] and answer.citation_ok is False

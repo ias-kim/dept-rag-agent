@@ -33,6 +33,8 @@ def test_none_handled():
     assert none_handled(NONE_ITEM, guess) is False
     assert none_handled(NONE_ITEM, cited) is False
     assert none_handled(ITEM, declined) is None
+    mixed = Answer(text=f"{CANNOT_ANSWER}. 실제로는 9월 1일입니다.", sources=[], citation_ok=False)
+    assert none_handled(NONE_ITEM, mixed) is False
 
 
 

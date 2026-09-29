@@ -63,6 +63,14 @@ def test_load_grading_normalizes_fullwidth_marks(tmp_path):
     assert load_grading(p) == {"A01": True}
 
 
+def test_load_grading_rejects_duplicate_ids(tmp_path):
+    # 게이트 3 P2: 엑셀에서 행이 복제되면 뒤 행이 앞 채점을 조용히 덮어쓰지 않게
+    p = _grading(tmp_path, [{"id": "A01", "key_points_ok": "O", "no_hallucination": "O"},
+                            {"id": "A01", "key_points_ok": "X", "no_hallucination": "O"}])
+    with pytest.raises(ValueError, match="A01"):
+        load_grading(p)
+
+
 def test_load_grading_rejects_unknown_mark(tmp_path):
     p = _grading(tmp_path, [{"id": "A07", "key_points_ok": "v", "no_hallucination": "O"}])
     with pytest.raises(ValueError, match="A07"):

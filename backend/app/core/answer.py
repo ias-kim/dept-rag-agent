@@ -64,6 +64,11 @@ def render_context(question: str, hits: Sequence[ChunkHit]) -> str:
     return "<자료>\n" + "\n\n".join(blocks) + "\n</자료>\n\n질문: " + question
 
 
+def is_cannot_answer(text: str) -> bool:
+    """답 전체가 거절 문구 하나뿐인가 (프롬프트 규칙 4). 문구 뒤에 다른 주장이 붙으면 거절로 보지 않는다."""
+    return text.strip().rstrip(".").strip() == CANNOT_ANSWER
+
+
 def verify_citations(raw: str, hits: Sequence[ChunkHit]) -> Answer:
     by_id = {h.chunk_id: h for h in hits}
     order: list[int] = []
@@ -90,7 +95,7 @@ def verify_citations(raw: str, hits: Sequence[ChunkHit]) -> Answer:
     text = MARKER_RE.sub(replace, raw).strip()
     sources = [Source(by_id[c].source, by_id[c].page, by_id[c].section) for c in order]
     notices = ["invalid_citation"] if invalid else []
-    if not sources and CANNOT_ANSWER not in text:
+    if not sources and not is_cannot_answer(text):
         notices.append("no_citation")
         invalid = True
     return Answer(text=text, sources=sources, citation_ok=not invalid, notices=notices, retrieved=list(hits))

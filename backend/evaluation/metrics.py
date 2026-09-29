@@ -3,7 +3,7 @@
 import unicodedata
 from collections.abc import Iterable, Sequence
 
-from app.core.answer import CANNOT_ANSWER, Answer, Source
+from app.core.answer import Answer, Source, is_cannot_answer
 from app.db.search import ChunkHit
 from evaluation.dataset import EvalItem
 
@@ -38,7 +38,7 @@ def none_handled(item: EvalItem, answer: Answer) -> bool | None:
     """none 문항: 출처를 내지 않았고 + 거절/근거없음 공지가 있거나 "찾을 수 없다"고 답해야 통과."""
     if item.intent != "none":
         return None
-    declined = bool({"no_evidence", "refused"} & set(answer.notices)) or CANNOT_ANSWER in answer.text
+    declined = bool({"no_evidence", "refused"} & set(answer.notices)) or is_cannot_answer(answer.text)
     return not answer.sources and declined
 
 
