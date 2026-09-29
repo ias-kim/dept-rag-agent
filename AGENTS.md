@@ -9,12 +9,14 @@
 |---|---|---|
 | 설치 | `make setup` | Python **3.12** 고정(uv 필요), 프론트 `npm ci` |
 | 린트 | `make lint` | ruff(backend) + oxlint(frontend) |
-| 테스트 | `make test` | pytest, 구조 테스트 포함 |
+| DB 기동 | `make db-up` | `make test`/`make check` 전에 필요 · 로컬 포트 5433 (CI는 서비스 컨테이너) |
+| 테스트 | `make test` | pytest, 구조 테스트 포함 · DB 필요 |
 | 생성 | `make generate` | 파생물 재생성 → `docs/generated/` |
 | **게이트 1 전체** | `make check` | CI와 동일. 끝내기 전에 반드시 통과 |
+| 적재 | `make migrate && make ingest` | `data/academic/…`, `data/major/<과목코드>/…` PDF |
 | 스모크 | `make smoke` | 서버 실행 중 `/health` 확인 |
 
-서버 실행: `cd backend && .venv/bin/uvicorn app.main:app --reload` · DB: `docker compose -f docker/docker-compose.yml up -d`
+서버 실행: `cd backend && .venv/bin/uvicorn app.main:app --reload`
 
 ## 계층 규칙 (강제됨)
 

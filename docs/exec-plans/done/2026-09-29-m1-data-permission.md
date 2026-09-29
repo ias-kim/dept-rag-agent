@@ -33,11 +33,11 @@
 ## 완료 기준
 
 - [ ] 스파이크 3건 결과가 이 파일 "스파이크 결과"에 기록됨
-- [ ] 마이그레이션 0001로 5개 테이블·CHECK·복합 FK·부분 HNSW 2개 생성, 스키마 테스트 통과
-- [ ] 권한 테스트 행렬(설계 §4 중 DB 행) 통과
-- [ ] `make ingest`가 폴더 동기화(추가·갱신·삭제·변경 없음·빈 문서 경고), 한 트랜잭션
+- [x] 마이그레이션 0001로 5개 테이블·CHECK·복합 FK·부분 HNSW 2개 생성, 스키마 테스트 통과
+- [x] 권한 테스트 행렬(설계 §4 중 DB 행) 통과
+- [x] `make ingest`가 폴더 동기화(추가·갱신·삭제·변경 없음·빈 문서 경고), 한 트랜잭션
 - [ ] CI에서 DB 테스트가 실제로 실행됨(건너뛰지 않음)
-- [ ] `docs/sot.md`의 청크 메타데이터·DB 구조 행이 실제 경로로 갱신, 이전 exec-plan(`2026-09-28-metadata-schema.md`)은 `done/`으로 이동
+- [x] `docs/sot.md`의 청크 메타데이터·DB 구조 행이 실제 경로로 갱신, 이전 exec-plan(`2026-09-28-metadata-schema.md`)은 `done/`으로 이동
 
 ## 파일 구조
 
@@ -250,7 +250,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 BACKEND = Path(__file__).resolve().parents[2]
-DEFAULT_URL = "postgresql+psycopg://dept_rag:dept_rag@localhost:5432/dept_rag_test"
+DEFAULT_URL = "postgresql+psycopg://dept_rag:dept_rag@localhost:5433/dept_rag_test"
 TABLES = "users, enrollments, documents, chunks, usage_daily"
 
 
@@ -392,7 +392,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql+psycopg://dept_rag:dept_rag@localhost:5432/dept_rag"
+    database_url: str = "postgresql+psycopg://dept_rag:dept_rag@localhost:5433/dept_rag"
     openai_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"
     chunk_max_chars: int = 800
@@ -1495,3 +1495,4 @@ git push -u origin feat/m1-data-permission
 - 2026-09-29: 계획 작성. 스키마는 원시 SQL 마이그레이션을 SoT로, ORM은 제약 없이 거울로 둔다(두 곳에 제약을 쓰면 어긋남).
 - 2026-09-29: 조각↔문서 스코프·과목 일치를 트리거 대신 복합 FK(`MATCH SIMPLE`)로 강제. 학사 조각은 과목이 NULL이라 과목 FK는 검사되지 않지만 스코프 FK가 덮는다.
 - 2026-09-29: 설계 §3의 `usage_daily.date`는 컬럼명을 `day`로 한다(타입명과 혼동 방지).
+- 2026-09-29: 로컬 DB 호스트 포트를 5433으로 변경 — 5432는 다른 프로젝트 컨테이너가 사용 중. CI는 5432 유지.
