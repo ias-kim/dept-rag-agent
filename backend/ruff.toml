@@ -4,3 +4,4 @@ line-length = 100
 
 [lint]
 extend-select = ["I"]
+ignore = ["TRY004"]

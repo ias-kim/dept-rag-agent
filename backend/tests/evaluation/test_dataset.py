@@ -1,3 +1,5 @@
+import unicodedata
+
 import pytest
 
 from evaluation.dataset import EvalItem, GoldSource, check_frozen, freeze, load_items
@@ -107,6 +109,20 @@ def test_invalid_items_rejected(tmp_path, bad, message):
   gold_sources: [{file: a.pdf, page: 1}]
   key_points: 9월 8일
 """, "key_points"),  # key_points가 스칼라
+    ("""
+- id: A01
+  question: q
+  intent: academic
+  gold_sources: [{file: a.pdf, page: 1}]
+  key_points: [1]
+""", "key_points"),  # key_points의 원소가 숫자
+    ("""
+- id: A01
+  question: q
+  intent: academic
+  gold_sources: [{file: a.pdf, page: 1}]
+  key_points: [{a: b}]
+""", "key_points"),  # key_points의 원소가 dict
 ])
 def test_input_validation_rejects(tmp_path, bad, message):
     with pytest.raises(ValueError, match=message):
@@ -126,3 +142,35 @@ def test_check_frozen_rejects_changed_file(tmp_path):
     q.write_text(VALID.replace("정정 기간은?", "정정 기간이 언제야?"), encoding="utf-8")
     with pytest.raises(ValueError, match="동결"):
         check_frozen(q, tmp_path / "FROZEN")
+
+
+def test_nfc_normalization_in_loader(tmp_path):
+    """gold file이 NFD인 경우 NFC로 변환되어 저장되는지 확인"""
+    nfd_file = unicodedata.normalize("NFD", "academic/학사일정.pdf")
+    nfc_file = unicodedata.normalize("NFC", "academic/학사일정.pdf")
+
+    yaml_content = f"""
+- id: A01
+  question: 수강신청 정정 기간은?
+  intent: academic
+  gold_sources:
+    - file: {nfd_file}
+      page: 2
+  key_points: [9월 8일~9월 12일]
+"""
+    items = load_items(write(tmp_path, yaml_content))
+    assert items[0].gold_sources[0].file == nfc_file
+
+
+def test_none_intent_omitted_lists(tmp_path):
+    """none intent일 때 gold_sources/key_points가 omitted인 경우 로드됨"""
+    yaml_content = """
+- id: N01
+  question: 오늘 점심 메뉴 추천해줘
+  intent: none
+"""
+    items = load_items(write(tmp_path, yaml_content))
+    assert items[0].id == "N01"
+    assert items[0].intent == "none"
+    assert items[0].gold_sources == ()
+    assert items[0].key_points == ()

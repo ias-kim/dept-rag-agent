@@ -31,7 +31,7 @@ class EvalItem:
 
 def _item(raw: dict, index: int) -> EvalItem:
     if not isinstance(raw, dict):
-        raise ValueError(f"#{index}: 항목이 매핑이어야 함")  # noqa: TRY004
+        raise ValueError(f"#{index}: 항목이 매핑이어야 함")
 
     # id 검증 (필수, 비어있지 않은 문자열)
     item_id = raw.get("id")
@@ -48,15 +48,17 @@ def _item(raw: dict, index: int) -> EvalItem:
     if intent not in INTENTS:
         raise ValueError(f"{label}: intent는 {sorted(INTENTS)} 중 하나")
 
-    # gold_sources 검증
+    # gold_sources 검증: missing/null은 [] 취급, 있으면 list여야 함
     gold_sources_raw = raw.get("gold_sources")
-    if not isinstance(gold_sources_raw, list):
-        raise ValueError(f"{label}: gold_sources는 목록이어야 함")  # noqa: TRY004
+    if gold_sources_raw is None:
+        gold_sources_raw = []
+    elif not isinstance(gold_sources_raw, list):
+        raise ValueError(f"{label}: gold_sources는 목록이어야 함")
 
     gold = []
     for g in gold_sources_raw:
         if not isinstance(g, dict):
-            raise ValueError(f"{label}: gold_sources의 각 항목은 매핑이어야 함")  # noqa: TRY004
+            raise ValueError(f"{label}: gold_sources의 각 항목은 매핑이어야 함")
 
         file_val = g.get("file")
         if file_val is None or not isinstance(file_val, str) or not file_val:
@@ -70,11 +72,20 @@ def _item(raw: dict, index: int) -> EvalItem:
         normalized_file = unicodedata.normalize("NFC", file_val)
         gold.append(GoldSource(normalized_file, page))
 
-    # key_points 검증
+    # key_points 검증: missing/null은 [] 취급, 있으면 list여야 함
     key_points_raw = raw.get("key_points")
-    if not isinstance(key_points_raw, list):
-        raise ValueError(f"{label}: key_points는 목록이어야 함")  # noqa: TRY004
-    key_points = tuple(str(k) for k in key_points_raw)
+    if key_points_raw is None:
+        key_points_raw = []
+    elif not isinstance(key_points_raw, list):
+        raise ValueError(f"{label}: key_points는 목록이어야 함")
+
+    # key_points의 각 원소가 문자열인지 검증 (str() 강제 변환 금지)
+    key_points = []
+    for k in key_points_raw:
+        if not isinstance(k, str):
+            raise ValueError(f"{label}: key_points는 문자열 목록이어야 함")
+        key_points.append(k)
+    key_points = tuple(key_points)
 
     if intent == "none" and gold:
         raise ValueError(f"{label}: intent none에는 gold_sources를 두지 않음")
@@ -90,7 +101,7 @@ def load_items(path: Path) -> list[EvalItem]:
 
     # 최상위가 목록이어야 함
     if not isinstance(raw, list):
-        raise ValueError("평가셋 최상위는 목록이어야 함")  # noqa: TRY004
+        raise ValueError("평가셋 최상위는 목록이어야 함")
 
     items = [_item(r, i) for i, r in enumerate(raw)]
     ids = [it.id for it in items]
