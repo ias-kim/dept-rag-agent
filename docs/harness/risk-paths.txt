@@ -2,6 +2,7 @@
 # 한 줄에 하나, 경로 접두사. '#'은 주석. CI(.github/workflows/check.yml)가 이 파일을 읽는다.
 backend/app/mcp/
 backend/app/db/
+backend/migrations/
 backend/requirements.txt
 docker/
 .github/

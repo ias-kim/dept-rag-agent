@@ -8,6 +8,8 @@ anthropic==1.8.0
 openai==3.19.2
 mcp==2.2.0
 python-dotenv==1.2.3
+alembic==1.20.0
+pypdf==6.19.0
 
 pytest==9.1.1
 httpx==0.28.1

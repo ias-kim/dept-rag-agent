@@ -4,7 +4,7 @@
 VENV ?= backend/.venv
 PY   ?= $(VENV)/bin/python
 
-.PHONY: setup lint lint-py lint-fe test generate check smoke
+.PHONY: setup lint lint-py lint-fe test generate check smoke db-up migrate ingest
 
 setup:
 	@if [ -x $(PY) ] && ! $(PY) -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))'; then \
@@ -33,3 +33,12 @@ check: lint test
 # 서버를 띄운 상태에서 "고쳤다"를 직접 확인하는 스모크 테스트
 smoke:
 	curl -fsS http://localhost:8000/health && echo
+
+db-up:
+	docker compose -f docker/docker-compose.yml up -d --wait
+
+migrate:
+	$(PY) -m alembic -c backend/alembic.ini upgrade head
+
+ingest:
+	PYTHONPATH=backend $(PY) -m app.core.ingest --root data

@@ -25,3 +25,6 @@ dist/
 
 # Docker
 docker/volumes/
+
+# 원본 PDF (저작권·용량) — S3/로컬에만
+/data/

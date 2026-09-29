@@ -9,6 +9,19 @@ jobs:
   gate1:
     name: 게이트 1 (make check)
     runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: dept_rag
+          POSTGRES_PASSWORD: dept_rag
+          POSTGRES_DB: dept_rag
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U dept_rag"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://dept_rag:dept_rag@localhost:5432/dept_rag_test
     steps:
       - uses: actions/checkout@v4
         with:
