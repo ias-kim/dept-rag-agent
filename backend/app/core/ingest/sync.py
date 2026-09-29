@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.embeddings import Embedder
-from app.core.ingest.chunking import chunk_pages
+from app.core.ingest.chunking import STRATEGIES, build_chunks
+from app.core.ingest.clean import clean_pages
 from app.core.ingest.pdf import extract_pages
 from app.db.models import Chunk, Document
 
@@ -73,8 +74,11 @@ def _guard_against_wipe(root: Path, sources: list[SourceFile], existing: dict[st
 
 
 def sync_folder(
-    session: Session, root: Path, embedder: Embedder, *, max_chars: int, overlap: int, prune: bool = False
+    session: Session, root: Path, embedder: Embedder, *, max_chars: int, overlap: int, prune: bool = False,
+    strategy: str = "structure",
 ) -> SyncReport:
+    if strategy not in STRATEGIES:
+        raise ValueError(f"unknown chunk strategy: {strategy!r} (choose from {STRATEGIES})")
     sources = discover(root)  # 잘못된 위치면 여기서 끝 — DB 변경 없음
     report = SyncReport()
     try:
@@ -89,7 +93,8 @@ def sync_folder(
             if old is not None and (old.sha256, old.scope, old.course_code) == (sha, sf.scope, sf.course_code):
                 report.unchanged.append(sf.rel_path)
                 continue
-            drafts = chunk_pages(extract_pages(sf.abs_path), max_chars=max_chars, overlap=overlap)
+            pages = clean_pages(extract_pages(sf.abs_path))  # 머리글·꼬리말·쪽번호 제거
+            drafts = build_chunks(pages, strategy=strategy, max_chars=max_chars, overlap=overlap)
             vectors = embedder.embed([d.text for d in drafts]) if drafts else []
             if old is not None:
                 session.delete(old)

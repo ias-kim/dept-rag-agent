@@ -23,6 +23,24 @@ def chunk_count(session, path=None):
     return session.execute(stmt).scalar_one()
 
 
+def test_headers_removed_and_slide_title_becomes_section(session, tmp_path):
+    header = "Yeungjin College Global System Dept"
+    titles = ["Closure", "Scope chain", "Hoisting", "Promise"]
+    make_pdf(tmp_path / "major" / "js" / "ch1.pdf", [f"{header}\n{t}\n{t} explained here" for t in titles])
+    sync_folder(session, tmp_path, FakeEmbedder(), **OPTS)
+    chunks = session.scalars(select(Chunk).order_by(Chunk.ord)).all()
+    assert len(chunks) == 4
+    assert all(header not in c.text for c in chunks)
+    assert [c.section for c in chunks] == titles
+
+
+def test_fixed_strategy_is_selectable(session, tmp_path):
+    # fpdf가 긴 줄을 자동 줄바꿈해 추출 텍스트는 약 1,517자 → 1,000자 창·100자 겹침이면 2조각
+    make_pdf(tmp_path / "academic" / "long.pdf", ["x" * 1500])
+    sync_folder(session, tmp_path, FakeEmbedder(), max_chars=1000, overlap=100, strategy="fixed")
+    assert chunk_count(session) == 2
+
+
 def test_first_sync_adds_everything(session, root):
     report = sync_folder(session, root, FakeEmbedder(), **OPTS)
     assert sorted(report.added) == ["academic/calendar.pdf", "academic/rules.pdf", "major/cs101/lec1.pdf"]

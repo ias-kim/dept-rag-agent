@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"
     chunk_max_chars: int = 800
-    chunk_overlap: int = 100
+    chunk_overlap: int = 100  # fixed 전략에서만 사용
+    chunk_strategy: str = "structure"  # "fixed" | "structure" — docs/generated/chunk-comparison.md 참고
     data_dir: Path = Path("data")
     anthropic_api_key: str = ""
     generation_model: str = "claude-sonnet-5-5"
