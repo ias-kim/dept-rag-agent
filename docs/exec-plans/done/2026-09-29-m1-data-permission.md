@@ -169,8 +169,8 @@ Expected: ARN 출력 후 삭제 성공. `AccessDenied`면 메시지 전문(SCP �
 |---|---|---|---|
 | S0 | pgvector 부분 HNSW·CHECK | ✅ 0.8.6에서 동작 (2026-09-29) | 없음 |
 | S1 | MCP 2.2 메모리 전송·사용자별 목록 | ✅ (2026-09-29) `Server(name, on_list_tools=, on_call_tool=)`(mcp.server.lowlevel), 핸들러 `async (ctx, params)` → `types.ListToolsResult(tools=[types.Tool(name, description, inputSchema=)])` / `types.CallToolResult(content=[types.TextContent(type="text", text=)])`(`params.name`·`params.arguments`), 실행 `tg.start_soon(server.run, server_streams[0], server_streams[1], server.create_initialization_options())`, 클라이언트 `ClientSession(*client_streams)`+`initialize()`(스트림은 `create_client_server_memory_streams()`) | 없음 — 요청마다 `build_server(courses)`로 서버를 만들고 클로저로 사용자 컨텍스트를 담으면 목록·호출 결과가 사용자별로 갈림(프로브로 확인) |
-| S2 | 임베딩 차원 | | |
-| S3 | IAM 역할 생성 | | |
+| S2 | 임베딩 차원 | ⏭ 생략 (Ruling 1) — OpenAIEmbedder가 차원 ≠ 1536이면 거부, 첫 실 적재에서 확인 | 실 적재 시 확인 |
+| S3 | IAM 역할 생성 | ⏳ 튜터 실행 대기 | M4 전 확인 필요 |
 
 ---
 
