@@ -44,7 +44,7 @@ def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
         "latency_ms": latency_ms,
         "recall_at_k": recall_at_k(item, answer.retrieved),
         "source_match": source_match(item, answer.sources),
-        "none_handled": none_handled(item, answer.sources),
+        "none_handled": none_handled(item, answer),
         "key_points": list(item.key_points),
     }
 

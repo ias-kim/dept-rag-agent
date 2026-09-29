@@ -1,6 +1,6 @@
 import unicodedata
 
-from app.core.answer import Source
+from app.core.answer import CANNOT_ANSWER, NO_EVIDENCE, REFUSED, Answer, Source
 from evaluation.dataset import EvalItem, GoldSource
 from evaluation.metrics import none_handled, rate, recall_at_k, source_match
 from tests.fakes import make_hit
@@ -22,9 +22,18 @@ def test_source_match():
 
 
 def test_none_handled():
-    assert none_handled(NONE_ITEM, []) is True
-    assert none_handled(NONE_ITEM, [Source("academic/a.pdf", 1, None)]) is False
-    assert none_handled(ITEM, []) is None
+    declined = Answer(text=NO_EVIDENCE, sources=[], citation_ok=True, notices=["no_evidence"])
+    refused = Answer(text=REFUSED, sources=[], citation_ok=True, notices=["refused"])
+    phrase = Answer(text=f"{CANNOT_ANSWER}.", sources=[], citation_ok=True)
+    guess = Answer(text="그냥 추측", sources=[], citation_ok=False, notices=["no_citation"])
+    cited = Answer(text="답[1]", sources=[Source("academic/a.pdf", 1, None)], citation_ok=True)
+    assert none_handled(NONE_ITEM, declined) is True
+    assert none_handled(NONE_ITEM, refused) is True
+    assert none_handled(NONE_ITEM, phrase) is True
+    assert none_handled(NONE_ITEM, guess) is False
+    assert none_handled(NONE_ITEM, cited) is False
+    assert none_handled(ITEM, declined) is None
+
 
 
 def test_rate_ignores_none():
