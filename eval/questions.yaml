@@ -1,0 +1,211 @@
+# 평가셋 — eval/README.md 형식. 전공 M 15 · 학사 A 12 · both B 3 · none N 6 = 36
+# file은 data/ 기준 상대 경로. 학사 .md의 page는 `## 제목` 순번(첫 ## 앞 머리말이 1쪽).
+# 동결(make eval-freeze) 전까지 data/ 파일 이름을 바꾸면 여기 file도 같이 바꾼다.
+
+# ── 전공 (major) ──────────────────────────────────────────────
+- id: M01
+  question: MCP에서 Host, Client, Server는 각각 무슨 역할이야?
+  intent: major
+  gold_sources: [{file: major/AGENT/3-1_mcp.pdf, page: 4}]
+  key_points: [Host는 사용자가 쓰는 AI 애플리케이션, Client는 Host 안에서 특정 Server와 연결·통신, Server는 tools·resources·prompts 제공]
+
+- id: M02
+  question: JSON-RPC에서 Notification은 Request랑 뭐가 달라?
+  intent: major
+  gold_sources: [{file: major/AGENT/3-1_mcp.pdf, page: 27}]
+  key_points: [id 필드가 없음, 응답을 보내지도 기다리지도 않는 단방향 메시지]
+
+- id: M03
+  question: MCP의 Tool, Resource, Prompt는 각각 누가 사용을 결정해?
+  intent: major
+  gold_sources: [{file: major/AGENT/3-1_mcp.pdf, page: 6}, {file: major/AGENT/3-1_mcp.pdf, page: 5}]
+  key_points: [Tool은 모델(LLM)이 결정, Resource는 Host 애플리케이션이 결정, Prompt는 사용자가 선택]
+
+- id: M04
+  question: Function Calling은 어떤 순서로 동작해?
+  intent: major
+  gold_sources: [{file: "major/AGENT/3-1_Ch. 2 Function calling.pdf", page: 5}]
+  key_points: [LLM이 도구와 인자를 선택, 애플리케이션이 함수를 실행, 실행 결과로 LLM이 최종 답변 생성]
+
+- id: M05
+  question: EC2 인스턴스 스토어에 저장한 데이터는 인스턴스를 중지하면 어떻게 돼?
+  intent: major
+  gold_sources: [{file: major/AWS/3-1_6_스토리지.pdf, page: 17}]
+  key_points: [중지되거나 종료되면 데이터가 손실됨]
+
+- id: M06
+  question: Amazon S3는 어떤 데이터 일관성 모델을 제공해?
+  intent: major
+  gold_sources: [{file: major/AWS/3-1_6_스토리지.pdf, page: 58}]
+  key_points: [모든 신규·기존 객체에 강력한 일관성(쓰기 후 읽기 일관성) 제공]
+
+- id: M07
+  question: S3 스토리지 등급에는 어떤 것들이 있어?
+  intent: major
+  gold_sources: [{file: major/AWS/3-1_6_스토리지.pdf, page: 61}]
+  key_points: [Standard, Intelligent-Tiering, Standard-IA, One Zone-IA, Glacier, Glacier Deep Archive]
+
+- id: M08
+  question: 트랜잭션 중간 지점까지만 롤백하려면 어떻게 해?
+  intent: major
+  gold_sources: [{file: major/DB/2-2_9_DML과트랜잭션.pdf, page: 30}]
+  key_points: [SAVEPOINT로 표시자 생성, ROLLBACK TO 표시자로 해당 지점까지 롤백]
+
+- id: M09
+  question: COMMIT과 ROLLBACK 문을 쓰면 좋은 점이 뭐야?
+  intent: major
+  gold_sources: [{file: major/DB/2-2_9_DML과트랜잭션.pdf, page: 27}]
+  key_points: [데이터 일관성 보장, 영구 저장 전에 변경 내용 미리 확인, 논리적으로 관련된 작업을 묶음]
+
+- id: M10
+  question: 카티시안 곱은 언제 생기고 어떻게 막아?
+  intent: major
+  gold_sources: [{file: major/DB/2-2_6_조인.pdf, page: 20}]
+  key_points: [조인 조건을 생략하거나 부적합할 때 생김, 유효한 조인 조건을 항상 포함해 방지]
+
+- id: M11
+  question: 자바스크립트의 렉시컬 스코프가 뭐야?
+  intent: major
+  gold_sources: [{file: "major/JS/2-2_Ch.2 - JavaScript_ExecutionContext (1).pdf", page: 8}]
+  key_points: [변수의 스코프가 실행 위치가 아니라 코드가 선언된 위치로 결정됨]
+
+- id: M12
+  question: 파이썬 데코레이터는 언제 실행돼?
+  intent: major
+  gold_sources: [{file: major/OOP/2-2_Ch6.Decoratorpdf.pdf, page: 3}]
+  key_points: [함수 호출 시점이 아니라 정의 시점에 실행, 이름이 데코레이터가 반환한 함수로 다시 바인딩됨(bar = deco(bar))]
+
+- id: M13
+  question: Git fast-forward 병합은 어떤 방식이고 언제 가능해?
+  intent: major
+  gold_sources: [{file: major/WEB/2-1_chp_02_버전관리시스템(VCS).pdf, page: 47}]
+  key_points: [병합 커밋 없이 기준 브랜치 포인터만 앞으로 이동, 병합할 브랜치가 대상 브랜치의 직계 후손일 때 가능]
+
+- id: M14
+  question: Jetson Nano에서 쓸 수 있는 JetPack 최신 버전은?
+  intent: major
+  gold_sources: [{file: major/AUTODRIVE/2-2_3.Jetson-JetPack.pdf, page: 16}]
+  key_points: [JetPack 4.6까지 지원, 5.x부터 Nano 지원 중단]
+
+- id: M15
+  question: CNN에서 필터 수는 무엇을 결정해?
+  intent: major
+  gold_sources: [{file: major/AI/2-2_ch 4_CNN (2).pdf, page: 21}]
+  key_points: [모델이 학습할 특징의 용량(Capacity), 필터가 많을수록 더 다양한 패턴 감지]
+
+# ── 학사 (academic) ───────────────────────────────────────────
+- id: A01
+  question: AIAgent설계및구축 수업은 언제 어디서 해?
+  intent: academic
+  gold_sources: [{file: academic/2026-2학기-시간표.md, page: 3}, {file: academic/2026-2학기-시간표.md, page: 24}, {file: academic/2026-2학기-시간표.md, page: 26}]
+  key_points: [화요일·목요일 1~2교시, 창-301호]
+
+- id: A02
+  question: 3학년 금요일 AI데이터처리는 몇 교시야?
+  intent: academic
+  gold_sources: [{file: academic/2026-2학기-시간표.md, page: 9}, {file: academic/2026-2학기-시간표.md, page: 27}, {file: academic/notices/2026-08-xx_2학기-시간표-수정.md, page: 1}]
+  key_points: [7~9교시]
+
+- id: A03
+  question: 2학년 수요일에는 무슨 수업이 있어?
+  intent: academic
+  gold_sources: [{file: academic/2026-2학기-시간표.md, page: 25}]
+  key_points: [데이터구조및알고리즘(III) 1~2교시, 일본어회화(IV) 6~7교시, 일본어 특강 8~9교시]
+
+- id: A04
+  question: MIC 설명회는 언제 어디서 해?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-09-17_MIC-설명회-NHN테코라스-온라인설명회.md, page: 2}, {file: academic/notices/2026-09-17_MIC-설명회-NHN테코라스-온라인설명회.md, page: 1}]
+  key_points: [9월 17일 15시, 405호(1학년 교실)]
+
+- id: A05
+  question: AI윤리와책임 과목은 내가 직접 수강신청해야 해?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-08-21_수강신청-등록-AI윤리와책임.md, page: 3}]
+  key_points: [직접 신청하지 않고 시스템에서 자동 추가]
+
+- id: A06
+  question: 2학기 수강신청 마감이 언제고 어디서 해?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-08-21_수강신청-등록-AI윤리와책임.md, page: 2}]
+  key_points: [8월 21일(금)까지, 원스탑서비스 수강정보 수강신청]
+
+- id: A07
+  question: 전액 장학금 대상이면 등록 절차를 안 해도 돼?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-08-21_수강신청-등록-AI윤리와책임.md, page: 4}]
+  key_points: [전액 장학금 대상도 "등록하기"를 클릭해야 함]
+
+- id: A08
+  question: 법정의무교육은 언제까지 어디서 들어야 해?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-08-24_법정의무교육-온라인-수강.md, page: 1}]
+  key_points: [12월 31일까지, Y-LMS에서 온라인 수강]
+
+- id: A09
+  question: 추석 연휴에 강의실 열어?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-09-24_추석-연휴-강의실-운영.md, page: 1}]
+  key_points: [9월 24~25일 모든 강의실 폐쇄, 9월 26~27일 오픈]
+
+- id: A10
+  question: 2학년 면접 일본어 특강은 어디서 하고 출석은 어떻게 해?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-09-02_일본어-특강-안내.md, page: 2}]
+  key_points: [304호, 월~목 전원 출석(자기 순서가 아니어도)]
+
+- id: A11
+  question: eval 서버 언제 멈췄었어?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-07-03_eval-서버-운영-중지.md, page: 1}]
+  key_points: [7월 3일 20:00부터 7월 6일 09:00까지]
+
+- id: A12
+  question: 그린로그 챌린지 인증 사진은 어떻게 찍어서 어디로 내?
+  intent: academic
+  gold_sources: [{file: academic/notices/2026-09_그린로그-챌린지.md, page: 2}, {file: academic/notices/2026-09_그린로그-챌린지.md, page: 3}]
+  key_points: [타임스탬프 앱으로 날짜가 보이게 촬영, 카카오톡 채널로 제출]
+
+# ── 학사 + 전공 (both) ────────────────────────────────────────
+- id: B01
+  question: AIAgent설계및구축 수업은 몇 교시고, 그 수업에서 배운 MCP의 Host·Client·Server 역할도 알려줘
+  intent: both
+  gold_sources: [{file: academic/2026-2학기-시간표.md, page: 3}, {file: major/AGENT/3-1_mcp.pdf, page: 4}]
+  key_points: [화·목 1~2교시, Host는 AI 애플리케이션, Client는 Server와 연결, Server는 기능 제공]
+
+- id: B02
+  question: 딥러닝이론과실습 수업 시간이랑, CNN에서 필터 수가 의미하는 걸 알려줘
+  intent: both
+  gold_sources: [{file: academic/2026-2학기-시간표.md, page: 5}, {file: major/AI/2-2_ch 4_CNN (2).pdf, page: 21}]
+  key_points: [화·목 3~4교시, 필터 수는 학습할 특징의 용량을 결정]
+
+- id: B03
+  question: AIAgent설계및구축 강의실이 어디고, JSON-RPC Notification은 응답을 기다려?
+  intent: both
+  gold_sources: [{file: academic/2026-2학기-시간표.md, page: 3}, {file: major/AGENT/3-1_mcp.pdf, page: 27}]
+  key_points: [창-301호, 응답을 기다리지 않음(id 없음)]
+
+# ── 자료 밖 (none) — 보조 ─────────────────────────────────────
+- id: N01
+  question: 기숙사 신청 기간이 언제야?
+  intent: none
+
+- id: N02
+  question: 졸업하려면 총 몇 학점 들어야 해?
+  intent: none
+
+- id: N03
+  question: 오늘 학식 메뉴 뭐야?
+  intent: none
+
+- id: N04
+  question: 2027학년도 1학기 개강일이 언제야?
+  intent: none
+
+- id: N05
+  question: Rust의 소유권(ownership) 규칙 설명해줘
+  intent: none
+
+- id: N06
+  question: 학교 주차 등록은 어떻게 해?
+  intent: none
