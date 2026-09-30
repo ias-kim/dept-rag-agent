@@ -54,6 +54,8 @@ def discover(root: Path) -> list[SourceFile]:
         parts = rel.parts
         if any(part.startswith(".") for part in parts):  # ._x.pdf, .hidden/ 등
             continue
+        if len(parts) == 1 and p.suffix.lower() == ".md":  # data/MANIFEST.md 같은 설명 파일
+            continue
         if parts[0] == "academic":
             files.append(SourceFile(rel.as_posix(), p, "academic", None))
         elif parts[0] == "major" and len(parts) >= 3:

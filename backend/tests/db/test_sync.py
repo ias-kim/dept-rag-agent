@@ -169,3 +169,9 @@ def test_txt_files_are_ignored(session, root):
     (root / "academic" / "memo.txt").write_text("memo", encoding="utf-8")
     report = sync_folder(session, root, FakeEmbedder(), **OPTS)
     assert len(report.added) == 3
+
+
+def test_root_level_markdown_is_documentation_not_source(session, root):
+    (root / "MANIFEST.md").write_text("# 출처 목록\n", encoding="utf-8")
+    report = sync_folder(session, root, FakeEmbedder(), **OPTS)
+    assert len(report.added) == 3
