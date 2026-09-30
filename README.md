@@ -59,6 +59,30 @@ make check                                           # 커밋 전 검증 (CI와 
 
 `til/{이름}/{YYYY-MM-DD}.md` 형식으로 매주 1편 이상 작성 후 커밋. 규칙을 어기면 `make check`가 실패합니다.
 
+## 튜티용: 내려받기와 TIL 올리기
+
+코드를 실행할 필요는 없습니다. TIL만 올리면 됩니다. 작성 형식은 [`til/_example.md`](til/_example.md)를 참고하세요.
+
+**방법 1 — GitHub 웹에서 바로 (설치 없음, 1학년 추천)**
+
+1. 저장소의 `til/{내 이름}/` 폴더로 이동
+2. **Add file → Create new file** → 파일 이름을 `2026-10-01.md`처럼 날짜로 입력
+3. 내용 작성 후 **Commit changes**
+
+**방법 2 — 내 컴퓨터로 내려받아서**
+
+```bash
+git clone https://github.com/ias-kim/dept-rag-agent.git   # 처음 한 번
+cd dept-rag-agent
+git pull                                                  # 작성 전에 항상 최신으로
+# til/{내 이름}/YYYY-MM-DD.md 작성
+git add til/
+git commit -m "docs(til): 홍길동 2026-10-01"
+git push
+```
+
+`git push`가 거절되면 `git pull` 후 다시 `git push` 하세요. 다른 사람의 TIL이 먼저 올라온 경우입니다.
+
 ## 팀
 
 | 학년 | 이름 | 역할 |
