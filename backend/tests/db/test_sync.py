@@ -148,3 +148,30 @@ def test_dotfile_pdf_is_skipped(session, root):
     (root / ".hidden" / "x.pdf").write_bytes(b"garbage")
     report = sync_folder(session, root, FakeEmbedder(), **OPTS)
     assert len(report.added) == 3
+
+
+def test_markdown_academic_file_is_ingested_with_heading_sections(session, root):
+    (root / "academic" / "timetable.md").write_text("## Capstone\nFri 1-6\n\n## Deep learning\nTue 3-4\n", encoding="utf-8")
+    report = sync_folder(session, root, FakeEmbedder(), **OPTS)
+    assert "academic/timetable.md" in report.added
+    doc = session.scalars(select(Document).where(Document.path == "academic/timetable.md")).one()
+    sections = session.scalars(select(Chunk.section).where(Chunk.document_id == doc.id).order_by(Chunk.ord)).all()
+    assert sections == ["Capstone", "Deep learning"]
+
+
+def test_misplaced_markdown_rejected(session, root):
+    (root / "major" / "loose.md").write_text("## x\ny\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="major/loose.md"):
+        sync_folder(session, root, FakeEmbedder(), **OPTS)
+
+
+def test_txt_files_are_ignored(session, root):
+    (root / "academic" / "memo.txt").write_text("memo", encoding="utf-8")
+    report = sync_folder(session, root, FakeEmbedder(), **OPTS)
+    assert len(report.added) == 3
+
+
+def test_root_level_markdown_is_documentation_not_source(session, root):
+    (root / "MANIFEST.md").write_text("# 출처 목록\n", encoding="utf-8")
+    report = sync_folder(session, root, FakeEmbedder(), **OPTS)
+    assert len(report.added) == 3
