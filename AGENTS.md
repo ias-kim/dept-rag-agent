@@ -33,11 +33,22 @@
 4. **에이전트는 `.env`를 열거나 출력하지 않는다.** 실제 키가 있다. 앱은 런타임에 `Settings`로 읽는다(`app/core/config.py`). 설정 목록은 `.env.example`.
 5. **TIL은 `til/{이름}/{YYYY-MM-DD}.md`.** 구조 테스트가 검사한다.
 
+## 개발자 설명 문서와 코드 서술 (변경·신규 시 필수)
+
+코드를 새로 만들거나 동작을 바꾸면 **같은 PR에서** `docs/dev-notes/<주제>.md`를 만들거나 갱신한다. 형식은 [`docs/dev-notes/README.md`](docs/dev-notes/README.md).
+
+1. **순서:** 핵심 개념 → 데이터 흐름 → 실패 모드 → 다음 수정 → 업데이트 시 주의점. 파일별 요약은 쓰지 않거나 맨 끝 표 하나로 끝낸다.
+2. **"무엇을 하는가"보다 "깨지면 무엇이 잘못되는가".** 불변 조건마다 `조건 → 깨지면 생기는 문제 → 지키는 장치(테스트·코드 위치)`로 적는다. 읽는 사람이 함수 설명을 외우는 대신 "이 줄을 바꾸면 무엇이 무너지나"를 생각하게 만든다.
+3. **이름이 의도를 말한다.** 함수는 동사구(`build_chunks`), 참·거짓은 `is_`/`has_`, 단위·한계는 이름에(`max_chars`, `min_score`). 숫자 상수는 이름 있는 상수로 둔다.
+4. **주석은 '왜'와 '깨지면 생기는 일'만.** 코드를 다시 읽어 주는 주석은 쓰지 않는다. 주석만 읽어도 그 블록이 무엇을 지키는지 예상되게 쓴다.
+   - 나쁨: `# course_code로 필터`
+   - 좋음: `# 권한 필터: 스코프 조건이 바뀌어도 이 줄이 미수강 과목의 전공 조각을 막는다`
+
 ## 작업 흐름
 
 1. **시작 전** — `docs/exec-plans/active/<YYYY-MM-DD>-<주제>.md`를 만든다. 템플릿: [`docs/exec-plans/README.md`](docs/exec-plans/README.md). 완료 기준을 먼저 적는다.
 2. **구현** — 테스트 먼저(RED 확인) → 최소 구현(GREEN) → 정리.
-3. **확인** — `make check` 통과. API를 건드렸으면 `make generate` 결과도 커밋.
+3. **확인** — `make check` 통과. 바뀐 동작의 dev-note를 같은 PR에 넣었는지 확인. API를 건드렸으면 `make generate` 결과도 커밋.
 4. **리뷰** — Claude Code: `reviewer` 서브에이전트(게이트 2). 위험 경로를 건드렸으면 교차 모델 리뷰(게이트 3).
 5. **마무리** — 작은 PR로 병합, exec-plan을 `done/`으로 옮기고 결정 로그를 남긴다.
 
@@ -50,6 +61,7 @@
 | 설계 결정과 이유 | [`docs/adr/`](docs/adr/) |
 | 하네스 설정·게이트·위험 경로 | [`docs/harness/profile.md`](docs/harness/profile.md) |
 | 정기 정리 체크리스트 | [`docs/harness/gc-checklist.md`](docs/harness/gc-checklist.md) |
+| 모듈별 개념·흐름·실패 모드 (개발자 설명) | [`docs/dev-notes/`](docs/dev-notes/) |
 | 진행 중 작업 | [`docs/exec-plans/active/`](docs/exec-plans/active/) |
 | 외부 라이브러리 요약 | [`docs/references/`](docs/references/) |
 | 팀·스택·실행 소개 | [`README.md`](README.md) |
