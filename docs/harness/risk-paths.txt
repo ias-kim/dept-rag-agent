@@ -8,3 +8,5 @@ docker/
 .github/
 .env.example
 docs/harness/risk-paths.txt
+backend/app/api/
+backend/app/core/security.py

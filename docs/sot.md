@@ -8,6 +8,7 @@
 | 청크 메타데이터 스키마 (`source`·`page`·`section`·`scope`·`course`) | `backend/migrations/versions/0001_initial_schema.py` (`documents.path`, `chunks.page/section/scope/course_code`) | 출처 표시, 검색 필터, 평가셋 | `tests/db/test_schema.py` (게이트 1) |
 | DB 구조 | `backend/migrations/` (Alembic) | `backend/app/db/models.py` | `tests/db/test_schema.py` (차원·인덱스) |
 | 계층 의존 규칙 | `ARCHITECTURE.md` | `tests/structural/test_layers.py` | 구조 테스트 (게이트 1) |
+| 계정·수강 과목 | DB `users`·`enrollments` (`make users`로만 변경) | 토큰은 user_id만, 과목은 요청마다 DB에서 | `tests/db/test_api.py`, `tests/db/test_accounts.py` |
 | 도구 노출·접근 권한 정책 | `ARCHITECTURE.md` "권한 두 겹" (6주차 권한 설계 문서로 이관) | `app/mcp` 노출 필터, `app/db` 조회 필터 | reviewer 서브에이전트 (게이트 2) |
 | 환경 설정 키 목록 | `.env.example` | README 설정 설명 | 링크만 |
 | Python 의존성 | `backend/requirements.txt`, `requirements-dev.txt` | CI 설치 | CI 설치 성공 |

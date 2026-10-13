@@ -21,7 +21,7 @@ def test_security_floor(package, floor):
 
 @pytest.mark.parametrize(
     "module",
-    ["fastapi", "mcp", "anthropic", "openai", "sqlalchemy", "psycopg", "pgvector", "pydantic_settings"],
+    ["fastapi", "mcp", "anthropic", "openai", "sqlalchemy", "psycopg", "pgvector", "pydantic_settings", "jwt", "argon2"],
 )
 def test_core_libraries_import(module):
     importlib.import_module(module)

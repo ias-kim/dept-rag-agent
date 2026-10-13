@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     classify_model: str = "claude-haiku-4-5-20251001"
     classify_max_tokens: int = 16  # 라벨 한 단어만 받는다. 늘리면 설명이 붙어 형식 오류(→both)가 는다
     router_mode: str = "workflow"  # "baseline" | "workflow" — app/core/pipeline.py MODES
+    jwt_secret: str = ""  # 32자 이상. 비거나 짧으면 토큰 발급·검증을 모두 거부한다 (app/core/security.py)
+    jwt_ttl_hours: int = 12
+    default_daily_quota: int = 50
+    login_max_attempts_per_account: int = 5  # (IP, 아이디)별 — 창 안에서 이만큼 시도하면 429
+    login_max_attempts_per_ip: int = 20  # IP별 — 아이디를 바꿔 가며 뿌리는 시도까지 막는다
+    login_window_minutes: int = 15
 
 
 @lru_cache
