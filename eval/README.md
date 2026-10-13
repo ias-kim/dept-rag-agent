@@ -23,7 +23,7 @@
 1. 36문항 작성 → `make eval-freeze` (이후 수정하면 `make check` 실패)
 2. `make eval LABEL=baseline` → `grading/<실행>.csv`에 `RUBRIC.md` 기준으로 O/X
 3. `make eval-report` → `docs/generated/eval-comparison.md` 커밋
-4. 4주차(라우터): **같은 커밋·같은 날**에 `make eval LABEL=baseline-v2` → `make eval LABEL=router-v1 MODE=workflow` → 둘 다 채점 → `make eval-report`. 라우터 효과는 `router-v1` 대 `baseline-v2`로 본다(3주차 baseline은 생성 프롬프트가 달라 직접 비교 불가). 비교표의 "도구 오류"가 0이 아니면 장애가 섞인 실행이니 다시 잰다.
+4. 4주차(라우터): **같은 커밋·같은 날**에 `make eval LABEL=baseline-v2` → `make eval LABEL=router-v1 MODE=workflow` → 둘 다 채점 → `make eval-report`. 라우터 효과는 `router-v1` 대 `baseline-v2`로 본다(3주차 baseline은 생성 프롬프트가 달라 직접 비교 불가). 라우터 피해는 "의도 정확도"보다 "라우팅 손실"(오분류 때문에 근거를 놓친 문항 수)로 본다 — 평가셋 none은 "자료 없음"이라 분류기가 맞힐 수 없는 문항이 섞여 있다. 비교표의 "도구 오류"가 0이 아니면 장애가 섞인 실행이니 다시 잰다.
 
 ## 자주 막히는 곳
 - `make eval`이 FileExistsError로 멈추면: 같은 날·같은 커밋 실행 이름이 겹친 것 — `LABEL=baseline-2`처럼 다른 라벨을 쓴다(이전 채점표를 보호).
