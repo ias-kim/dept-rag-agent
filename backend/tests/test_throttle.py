@@ -1,20 +1,53 @@
+from concurrent.futures import ThreadPoolExecutor
+
 from app.api.throttle import LoginThrottle
 
-KEY = ("1.2.3.4", "kim")
+
+def make(now, **kw):
+    opts = {"max_per_account": 2, "max_per_ip": 5, "window_seconds": 60, "max_keys": 1000}
+    return LoginThrottle(**{**opts, **kw}, clock=lambda: now[0])
 
 
 def test_block_lifts_after_window():
     # 창이 지나도 계속 막으면, 한 번 실수한 학생이 서버를 다시 켤 때까지 로그인하지 못한다
     now = [0.0]
-    t = LoginThrottle(max_failures=2, window_seconds=60, clock=lambda: now[0])
-    t.record_failure(KEY)
-    t.record_failure(KEY)
-    assert t.is_blocked(KEY)
+    t = make(now)
+    assert t.try_acquire("1.2.3.4", "kim") and t.try_acquire("1.2.3.4", "kim")
+    assert not t.try_acquire("1.2.3.4", "kim")
     now[0] = 61
-    assert not t.is_blocked(KEY)
+    assert t.try_acquire("1.2.3.4", "kim")
 
 
-def test_keys_are_independent():
-    t = LoginThrottle(max_failures=1, window_seconds=60)
-    t.record_failure(KEY)
-    assert t.is_blocked(KEY) and not t.is_blocked(("5.6.7.8", "kim")) and not t.is_blocked(("1.2.3.4", "lee"))
+def test_concurrent_attempts_cannot_exceed_limit():
+    # 확인과 기록이 따로면 동시에 들어온 요청이 모두 확인을 통과해 제한을 넘는다
+    t = LoginThrottle(max_per_account=5, max_per_ip=100, window_seconds=60, max_keys=1000)
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        results = list(pool.map(lambda _: t.try_acquire("1.2.3.4", "kim"), range(40)))
+    assert results.count(True) == 5
+
+
+def test_success_clears_account_attempts():
+    now = [0.0]
+    t = make(now)
+    t.try_acquire("1.2.3.4", "kim")
+    t.succeeded("1.2.3.4", "kim")
+    assert t.try_acquire("1.2.3.4", "kim") and t.try_acquire("1.2.3.4", "kim")
+
+
+def test_one_ip_cannot_spray_many_usernames():
+    # 아이디를 바꿔 가며 시도하면 계정별 제한을 피할 수 있다 — IP별 상한으로 막는다
+    now = [0.0]
+    t = make(now)
+    assert all(t.try_acquire("1.2.3.4", f"user{i}") for i in range(5))
+    assert not t.try_acquire("1.2.3.4", "user99")
+    assert t.try_acquire("5.6.7.8", "user99")  # 다른 IP는 영향 없음
+
+
+def test_memory_is_bounded():
+    # 임의의 IP·아이디 조합으로 기록을 무한히 늘릴 수 없어야 한다
+    now = [0.0]
+    t = make(now, max_keys=10, max_per_ip=10_000)
+    for i in range(100):
+        t.try_acquire(f"10.0.0.{i}", f"u{i}")
+        now[0] += 1
+    assert t.tracked_keys() <= 2 * 10  # 계정 키 + IP 키

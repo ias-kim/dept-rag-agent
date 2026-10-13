@@ -17,8 +17,8 @@
 ```
 POST /api/auth/login {username ≤64자, password ≤256자}       → 길이 초과 422
  → JWT_SECRET 32자 미만이면 503 (비밀번호 확인 전에 멈춤)
- → (접속 IP, 아이디) 최근 15분 실패 5회 이상이면 429
- → find_user → verify_password(없는 계정도 더미 해시로 검증) → 실패 기록·401 / 성공 시 기록 초기화
+ → try_acquire: (IP, 아이디) 15분 5회·IP 15분 20회 안이면 시도 1회를 먼저 기록, 넘으면 429
+ → find_user → verify_password(없는 계정도 더미 해시로 검증) → 401 / 성공 시 그 계정 기록 삭제
  → issue_token(user_id, JWT_SECRET, 12h) → {access_token, token_type: "bearer"}
 
 POST /api/ask {question}   Authorization: Bearer <token>
@@ -40,7 +40,9 @@ POST /api/ask {question}   Authorization: Bearer <token>
 |---|---|---|
 | `JWT_SECRET`이 32자 미만이면 발급·검증 모두 거부 | 기본값 `""`로 서명되면 누구나 같은 키로 토큰을 위조해 아무 학생으로 행세한다 | `test_short_secret_is_refused` |
 | 키가 없을 때는 비밀번호 확인 전에 같은 503 | 맞는 비밀번호만 500(토큰 발급 실패)이 나면 비밀번호 정답 여부가 새어 나가 무차별 대입 오라클이 된다 | `test_missing_jwt_secret_does_not_reveal_password_correctness` |
-| (IP, 아이디)마다 15분에 5회 실패하면 맞는 비밀번호도 429 | 시도 제한이 없으면 비밀번호를 무한히 맞혀 볼 수 있다. 아이디만 키로 쓰면 남의 계정을 일부러 잠글 수 있다 | `test_repeated_login_failures_are_throttled_per_ip_and_username`, `test_block_lifts_after_window` |
+| (IP, 아이디)별 15분 5회·IP별 20회를 넘으면 맞는 비밀번호도 429 | 제한이 없으면 비밀번호를 무한히 맞혀 볼 수 있다. 아이디만 키로 쓰면 남의 계정을 일부러 잠글 수 있고, IP 상한이 없으면 아이디를 바꿔 가며 뿌릴 수 있다 | `test_repeated_login_failures_are_throttled_per_ip_and_username`, `test_one_ip_cannot_spray_many_usernames`, `test_block_lifts_after_window` |
+| 시도는 확인과 같은 잠금 안에서 **먼저** 기록(`try_acquire`) | 확인하고 실패를 나중에 기록하면 동시에 들어온 요청이 모두 확인을 통과해 제한을 넘는다 | `test_concurrent_attempts_cannot_exceed_limit` |
+| 제한 기록 수는 `max_keys`로 묶음(만료분 → 오래된 것 순으로 삭제) | 임의의 IP·아이디 조합으로 서버 메모리를 계속 늘릴 수 있다 | `test_memory_is_bounded` |
 | 로그인 입력 길이 상한(아이디 64·비밀번호 256) | 아주 긴 비밀번호로 argon2 해싱 부하를 줘 서버를 붙잡을 수 있다 | `test_login_input_length_is_limited` |
 | `decode_token`은 `algorithms=["HS256"]` 고정, `exp`·`sub` 필수 | `alg: none` 토큰이 서명 없이 통과하거나, 만료 없는 영구 토큰이 생긴다 | `test_decode_rejects_missing_sub_and_none_alg`, `test_decode_rejects_expired_token` |
 | 토큰에는 user_id만, 과목은 요청마다 DB에서 | 수강 취소·게스트 전환이 토큰 만료 전까지 반영되지 않는다 | `test_token_round_trip_carries_only_user_id`, `test_guest_courses_come_from_db_not_token` |

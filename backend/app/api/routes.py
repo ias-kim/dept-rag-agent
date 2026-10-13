@@ -66,15 +66,14 @@ class AskResponse(BaseModel):
 def login(body: LoginRequest, request: Request, session: SessionDep, settings: SettingsDep,
           throttle: Annotated[LoginThrottle, Depends(get_login_throttle)]) -> TokenResponse:
     require_auth_configured(settings)
-    key = (request.client.host if request.client else "", body.username)
-    if throttle.is_blocked(key):  # 맞는 비밀번호도 막아야 반복 추측이 의미 없어진다
+    ip = request.client.host if request.client else ""
+    if not throttle.try_acquire(ip, body.username):  # 맞는 비밀번호도 막아야 반복 추측이 의미 없어진다
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요")
     user = find_user(session, body.username)
     # 없는 계정과 틀린 비밀번호를 같은 문구·같은 검증 비용으로 처리해 계정 존재를 드러내지 않는다
     if not verify_password(body.password, user.password_hash if user else None):
-        throttle.record_failure(key)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다")
-    throttle.reset(key)
+    throttle.succeeded(ip, body.username)
     return TokenResponse(access_token=issue_token(user.id, secret=settings.jwt_secret, ttl_hours=settings.jwt_ttl_hours))
 
 

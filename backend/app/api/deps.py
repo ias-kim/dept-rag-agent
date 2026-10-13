@@ -77,7 +77,9 @@ def current_user(
 @lru_cache
 def get_login_throttle() -> LoginThrottle:
     settings = get_settings()
-    return LoginThrottle(max_failures=settings.login_max_failures, window_seconds=settings.login_window_minutes * 60)
+    return LoginThrottle(max_per_account=settings.login_max_attempts_per_account,
+                         max_per_ip=settings.login_max_attempts_per_ip,
+                         window_seconds=settings.login_window_minutes * 60, max_keys=10_000)
 
 
 def is_provider_outage(e: Exception) -> bool:

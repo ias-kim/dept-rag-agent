@@ -35,7 +35,7 @@ def api(session):
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, jwt_secret=SECRET)
     app.dependency_overrides[get_answer_fn] = lambda: fake
-    throttle = LoginThrottle(max_failures=5, window_seconds=900)  # 테스트마다 새로 — 실패 기록이 다른 테스트로 새지 않게
+    throttle = LoginThrottle(max_per_account=5, max_per_ip=20, window_seconds=900, max_keys=1000)  # 테스트마다 새로 — 실패 기록이 다른 테스트로 새지 않게
     app.dependency_overrides[get_login_throttle] = lambda: throttle
     yield TestClient(app), fake
     app.dependency_overrides.clear()
