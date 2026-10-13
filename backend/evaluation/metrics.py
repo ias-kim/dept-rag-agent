@@ -38,8 +38,16 @@ def none_handled(item: EvalItem, answer: Answer) -> bool | None:
     """none 문항: 출처를 내지 않았고 + 거절/근거없음 공지가 있거나 "찾을 수 없다"고 답해야 통과."""
     if item.intent != "none":
         return None
-    declined = bool({"no_evidence", "refused"} & set(answer.notices)) or is_cannot_answer(answer.text)
+    # out_of_scope: workflow가 none 의도를 검색·생성 없이 거절한 경우. 빠지면 라우터가 잘 거절해도 실패로 집계된다
+    declined = bool({"no_evidence", "refused", "out_of_scope"} & set(answer.notices)) or is_cannot_answer(answer.text)
     return not answer.sources and declined
+
+
+def intent_ok(item: EvalItem, answer: Answer) -> bool | None:
+    """workflow 실행만 채점. 형식 오류로 both가 된 경우는 정답 라벨이 both여도 오답(설계 §5)."""
+    if answer.intent is None:
+        return None
+    return bool(answer.intent_valid) and answer.intent == item.intent
 
 
 def rate(values: Iterable[bool | None]) -> float | None:
