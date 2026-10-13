@@ -15,6 +15,7 @@
 | **게이트 1 전체** | `make check` | CI와 동일. 끝내기 전에 반드시 통과 |
 | 적재 | `make migrate && make ingest` | `data/academic/…`, `data/major/<과목코드>/…` PDF |
 | 스모크 | `make smoke` | 서버 실행 중 `/health` 확인 |
+| 계정 | `make users ARGS="add kim --courses AGENT,AWS"` | 비밀번호는 프롬프트로 입력(`--password-stdin` 가능). 과목 비우면 게스트(학사만). 서버에는 `.env`의 `JWT_SECRET`(32자 이상) 필요 |
 | 평가 | `make eval LABEL=baseline` → 채점 → `make eval-report` | 실제 API 비용 발생. 가이드 `eval/README.md` |
 | 라우터 평가 | `make eval LABEL=router-v1 MODE=workflow` | 기본 MODE는 baseline. 같은 커밋·같은 날의 `baseline-v2`와 비교 |
 | 평가셋 동결 | `make eval-freeze` | 이후 `eval/questions.yaml` 수정 시 `make check` 실패 |

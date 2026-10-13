@@ -94,7 +94,7 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 | A 수강생이 `course_code=B` | 0건 |
 | MCP 우회해 `db.search` 직접 호출 | 필터 유지 |
 
-**일일 한도**: LLM 호출 전 `INSERT … ON CONFLICT DO UPDATE SET count = count + 1 RETURNING count`. 초과 429. LLM 오류(503) 시 되돌림.
+**일일 한도**: LLM 호출 전 `INSERT … ON CONFLICT DO UPDATE SET count = count + 1 WHERE count < limit RETURNING count`(0 한도는 코드에서 거부 — 첫 INSERT는 WHERE를 거치지 않음). 날짜는 서울 기준. 순서는 입력 검증(422) → 한도(429) → 답변. LLM·임베딩 공급사 오류(503) 시 되돌림 — 임베딩은 MCP 도구 호출 전에 계산해 장애가 "자료 없음"으로 삼켜지지 않게 한다.
 
 ## 5. 라우터와 에이전트
 

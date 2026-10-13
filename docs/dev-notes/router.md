@@ -1,6 +1,6 @@
 # 라우터 (의도 분류 → 처리 표) — 4주차 workflow 모드
 
-> 마지막 갱신: 2026-10-13 · 계획: [`docs/exec-plans/active/2026-10-13-m3a-router.md`](../exec-plans/active/2026-10-13-m3a-router.md) · 설계 §5
+> 마지막 갱신: 2026-10-13 · 계획: [`docs/exec-plans/done/2026-10-13-m3a-router.md`](../exec-plans/done/2026-10-13-m3a-router.md) · 설계 §5
 
 ## 1. 핵심 개념
 
