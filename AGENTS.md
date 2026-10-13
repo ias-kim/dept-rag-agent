@@ -16,6 +16,7 @@
 | 적재 | `make migrate && make ingest` | `data/academic/…`, `data/major/<과목코드>/…` PDF |
 | 스모크 | `make smoke` | 서버 실행 중 `/health` 확인 |
 | 평가 | `make eval LABEL=baseline` → 채점 → `make eval-report` | 실제 API 비용 발생. 가이드 `eval/README.md` |
+| 라우터 평가 | `make eval LABEL=router-v1 MODE=workflow` | 기본 MODE는 baseline. 같은 커밋의 `baseline-v2`와 비교 |
 | 평가셋 동결 | `make eval-freeze` | 이후 `eval/questions.yaml` 수정 시 `make check` 실패 |
 
 서버 실행: `cd backend && .venv/bin/uvicorn app.main:app --reload`

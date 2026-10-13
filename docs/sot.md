@@ -19,4 +19,6 @@
 | 평가셋 | `eval/questions.yaml` (+ `eval/FROZEN`) | 평가 실행 기록, 비교표 | `tests/evaluation/test_eval_set.py` (동결 검사, 게이트 1) |
 | 채점 기준 | `eval/RUBRIC.md` | `eval/grading/*.csv` | - |
 | 답변 생성 프롬프트 | `backend/app/core/prompts/answer.md` | 평가 실행 meta의 `prompt_hash` | 실행 기록 |
+| 의도 분류 프롬프트 | `backend/app/core/prompts/classify.md` | 평가 meta의 `classify_prompt_hash` | 실행 기록 |
+| 처리 표 (의도 × 수강 여부 → 도구) | `backend/app/core/router.py` `plan()` | 설계 §5 표, `docs/dev-notes/router.md` | `tests/test_router.py` (게이트 1) |
 | 평가 비교표 | `eval/runs/`, `eval/grading/` (로컬) | `docs/generated/eval-comparison.md` | `make eval-report` 재생성 |
