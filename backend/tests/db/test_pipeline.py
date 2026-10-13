@@ -204,3 +204,19 @@ async def test_pipeline_passes_today_to_generation(session):
     llm = FakeLLM("답[C1].")
     await answer_question("q", user("CS101"), deps(session, llm))
     assert llm.calls[0]["messages"][0]["content"].startswith("오늘 날짜: 2026-09-30\n")
+
+
+@pytest.mark.anyio
+async def test_embedding_failure_surfaces_instead_of_becoming_no_evidence(session):
+    # 임베딩이 MCP 도구 안에서 처음 실패하면 tool_error로 삼켜져 "자료 없음" 답이 나가고 한도만 깎인다
+    seed_chunks(session, CORPUS)
+
+    class ProviderDown(Exception):
+        pass
+
+    def broken_embed(q):
+        raise ProviderDown("openai down")
+
+    d = replace(deps(session, FakeLLM("답[C1].")), embed_query=broken_embed)
+    with pytest.raises(ProviderDown):
+        await answer_question("q", user("CS101"), d)

@@ -27,6 +27,10 @@ OUT_OF_SCOPE_TEXT = "학과 전공자료·학사 공지 범위 밖의 질문이�
 MAJOR_ONLY_TEXT = "전공 강의자료는 해당 과목 수강생만 검색할 수 있습니다."
 
 
+class UpstreamError(RuntimeError):
+    """LLM·임베딩 공급사 장애. API가 503으로 바꾸고 차감한 한도를 되돌린다."""
+
+
 @dataclass(frozen=True)
 class PipelineDeps:
     session: Session
@@ -74,6 +78,9 @@ async def answer_question(question: str, user: UserContext, deps: PipelineDeps, 
             cache[query] = deps.embed_query(query)
         return cache[query]
 
+    # MCP 도구 안에서 처음 임베딩하면 공급사 장애가 tool_error로 삼켜져 "자료 없음" 답이 나가고 한도만 깎인다.
+    # 도구를 부르기 전에 한 번 계산해 오류를 호출자에게 그대로 올리고, 도구는 캐시를 쓴다.
+    embed_once(question)
     server = build_server(user, deps.session, embed_once, k=s.search_k, min_score=s.search_min_score)
     hits: list[ChunkHit] = []
     async with connect(server) as client:
