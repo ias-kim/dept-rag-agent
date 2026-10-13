@@ -40,7 +40,14 @@ def none_handled(item: EvalItem, answer: Answer) -> bool | None:
         return None
     # out_of_scope: workflow가 none 의도를 검색·생성 없이 거절한 경우. 빠지면 라우터가 잘 거절해도 실패로 집계된다
     declined = bool({"no_evidence", "refused", "out_of_scope"} & set(answer.notices)) or is_cannot_answer(answer.text)
+    # 도구 장애로 근거가 0건이 되어 붙은 no_evidence를 '잘 거절했다'로 세면 장애가 점수를 올린다
+    if count_tool_errors(answer) > 0:
+        return False
     return not answer.sources and declined
+
+
+def count_tool_errors(answer: Answer) -> int:
+    return sum(1 for n in answer.notices if n.startswith("tool_error:"))
 
 
 def intent_ok(item: EvalItem, answer: Answer) -> bool | None:

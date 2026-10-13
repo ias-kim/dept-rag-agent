@@ -96,3 +96,8 @@ def test_require_frozen_needs_frozen_file(tmp_path):
     q.write_text("- id: A\n", encoding="utf-8")
     with pytest.raises(ValueError, match="make eval-freeze"):
         require_frozen(q, tmp_path / "FROZEN")
+
+
+def test_evaluate_item_counts_tool_errors():
+    answer = Answer("a", [], True, notices=["tool_error:search_major", "no_evidence"])
+    assert evaluate_item(ITEM, answer, 1)["tool_errors"] == 1

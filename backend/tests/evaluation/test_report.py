@@ -102,3 +102,11 @@ def test_workflow_run_reports_intent_accuracy(tmp_path):
     row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-14-router-v1-abc"))
     cells = [c.strip() for c in row.strip("|").split("|")]
     assert cells[2] == "workflow" and cells[6] == "66.7%"
+
+
+def test_report_shows_tool_error_count_so_outages_are_visible(tmp_path):
+    records = [dict(r, tool_errors=n) for r, n in zip(RECORDS, (0, 2, 0), strict=True)]
+    make_run(tmp_path, "2026-10-14-router-v1-abc", records, {"label": "router-v1", "mode": "workflow", "today": "2026-10-14"})
+    row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-14-router-v1-abc"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert cells[-1] == "2" and cells[-2] == "2026-10-14"  # 측정일, 도구 오류 건수

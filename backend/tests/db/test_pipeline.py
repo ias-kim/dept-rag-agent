@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -153,3 +154,53 @@ async def test_blank_question_and_unknown_mode_are_rejected(session):
         await answer_question("   ", user(), deps(session, FakeLLM()))
     with pytest.raises(ValueError):
         await answer_question("q", user(), deps(session, FakeLLM()), mode="agent")
+
+
+def counting_deps(session, llm, calls):
+    base = deps(session, llm)
+
+    def embed(q):
+        calls.append(q)
+        return unit(0)
+
+    return replace(base, embed_query=embed)
+
+
+@pytest.mark.anyio
+async def test_workflow_none_intent_skips_embedding_and_search(session):
+    seed_chunks(session, CORPUS)
+    calls = []
+    answer = await answer_question("학식 뭐야?", user("CS101"), counting_deps(session, FakeLLM(classify_text="none"), calls),
+                                   mode="workflow")
+    assert calls == [] and answer.retrieved == []
+
+
+@pytest.mark.anyio
+async def test_workflow_both_intent_for_guest_searches_academic_only_and_explains(session):
+    seed_chunks(session, CORPUS)
+    llm = FakeLLM("답[C1].", classify_text="both")
+    answer = await answer_question("그 수업 몇 교시고 뭐 배워?", user(), deps(session, llm), mode="workflow")
+    assert [h.source for h in answer.retrieved] == ["academic/calendar.pdf"]
+    assert "major_requires_enrollment" in answer.notices
+
+
+@pytest.mark.anyio
+async def test_planned_tool_outside_visible_list_is_never_called(session, monkeypatch):
+    # 처리 표에 버그가 생겨 미수강자에게 search_major를 줘도, MCP 목록(권한 겹 ①)에 없으면 부르지 않는다
+    seed_chunks(session, CORPUS)
+    from app.core import pipeline
+    from app.core.router import Plan
+    from app.mcp.server import TOOL_ACADEMIC, TOOL_MAJOR
+
+    monkeypatch.setattr(pipeline, "plan", lambda intent, u: Plan((TOOL_ACADEMIC, TOOL_MAJOR), ()))
+    answer = await answer_question("q", user(), deps(session, FakeLLM("답[C1].", classify_text="major")), mode="workflow")
+    assert [h.source for h in answer.retrieved] == ["academic/calendar.pdf"]
+    assert not any(n.startswith("tool_error") for n in answer.notices)
+
+
+@pytest.mark.anyio
+async def test_pipeline_passes_today_to_generation(session):
+    seed_chunks(session, CORPUS)
+    llm = FakeLLM("답[C1].")
+    await answer_question("q", user("CS101"), deps(session, llm))
+    assert llm.calls[0]["messages"][0]["content"].startswith("오늘 날짜: 2026-09-30\n")

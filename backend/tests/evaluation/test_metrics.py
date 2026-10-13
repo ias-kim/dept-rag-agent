@@ -83,3 +83,9 @@ def test_intent_ok_is_none_for_baseline():
 def test_none_handled_accepts_out_of_scope():
     answer = Answer("범위 밖", [], True, notices=["out_of_scope"], intent="none", intent_valid=True)
     assert none_handled(NONE_ITEM, answer) is True
+
+
+def test_none_handled_does_not_credit_decline_caused_by_tool_failure():
+    # 도구가 모두 실패해 근거가 없으면 no_evidence가 붙지만, 이는 거절을 잘한 게 아니라 장애다
+    broken = Answer(text=NO_EVIDENCE, sources=[], citation_ok=True, notices=["tool_error:search_academic", "no_evidence"])
+    assert none_handled(NONE_ITEM, broken) is False

@@ -98,7 +98,7 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 
 ## 5. 라우터와 에이전트
 
-- `ROUTER_MODE=workflow|agent` 설정으로 전환. 분류는 Haiku 계열(분류 기본값 claude-haiku-4-5-20251001, 샘플링·effort 미사용), 생성·에이전트는 Sonnet 계열(생성 기본값 claude-sonnet-5-5 / effort medium, 거절 시 fallbacks "default"). 모델 ID는 설정값.
+- `ROUTER_MODE` 설정으로 전환: 현재 `baseline|workflow`(4주차), `agent`는 6주차에 추가. 분류는 Haiku 계열(분류 기본값 claude-haiku-4-5-20251001, 샘플링·effort 미사용), 생성·에이전트는 Sonnet 계열(생성 기본값 claude-sonnet-5-5 / effort medium, 거절 시 fallbacks "default"). 모델 ID는 설정값.
 - 프롬프트는 `backend/app/core/prompts/*.md`. 평가 실행마다 프롬프트 해시 기록.
 
 **처리 표 (`plan()`)**
