@@ -43,11 +43,23 @@ def test_one_ip_cannot_spray_many_usernames():
     assert t.try_acquire("5.6.7.8", "user99")  # 다른 IP는 영향 없음
 
 
-def test_memory_is_bounded():
-    # 임의의 IP·아이디 조합으로 기록을 무한히 늘릴 수 없어야 한다
+def test_memory_is_bounded_and_full_table_fails_closed():
+    # 임의의 IP·아이디 조합으로 기록을 무한히 늘릴 수 없어야 한다. 꽉 차면 새 조합은 거절(429)한다
     now = [0.0]
     t = make(now, max_keys=10, max_per_ip=10_000)
+    results = [t.try_acquire(f"10.0.0.{i}", f"u{i}") for i in range(100)]
+    assert results.count(True) == 10 and t.tracked_keys() <= 2 * 10
+    now[0] = 61  # 창이 지나면 만료 기록을 치우고 다시 받는다
+    assert t.try_acquire("10.0.1.1", "late")
+
+
+def test_flooding_new_keys_cannot_evict_a_blocked_record():
+    # 오래된 기록부터 지우면 공격자가 새 조합을 쏟아부어 자기 차단 기록을 밀어내고 제한을 초기화한다
+    now = [0.0]
+    t = make(now, max_keys=10, max_per_ip=10_000)
+    t.try_acquire("6.6.6.6", "kim")
+    t.try_acquire("6.6.6.6", "kim")
+    assert not t.try_acquire("6.6.6.6", "kim")
     for i in range(100):
-        t.try_acquire(f"10.0.0.{i}", f"u{i}")
-        now[0] += 1
-    assert t.tracked_keys() <= 2 * 10  # 계정 키 + IP 키
+        t.try_acquire(f"7.7.{i}.1", f"x{i}")
+    assert not t.try_acquire("6.6.6.6", "kim")
