@@ -59,6 +59,7 @@ question (str)
 | 처리 표 결과 ∩ MCP 보이는 도구만 호출 | 표가 실수로 미수강자에게 `search_major`를 내줘도 권한 겹이 막는다. 다만 이 교집합 단계를 빼면 그 호출이 "사용할 수 없는 도구" 오류로 돌아와 `tool_error` 공지에 섞이고, 표의 버그가 장애처럼 보인다 | `test_planned_tool_outside_visible_list_is_never_called` |
 | 도구 하나가 실패해도 나머지로 답한다 (baseline에도 적용) | 학사 검색 장애 하나로 전공 질문까지 전부 실패 | `test_one_failing_tool_does_not_sink_answer` |
 | 도구 실패는 평가에서 세어 보이게 한다 (`tool_errors`, 비교표 "도구 오류") | 실패해도 답변이 나오므로 recall 하락이 장애 탓인지 안 보인다. 모든 도구가 실패해 붙은 `no_evidence`가 none 문항을 "잘 거절함"으로 통과시킨다 | `test_evaluate_item_counts_tool_errors`, `test_none_handled_does_not_credit_decline_caused_by_tool_failure`, `test_report_shows_tool_error_count_so_outages_are_visible` |
+| `none`은 학교·학과와 명백히 무관할 때만 (`classify.md` 규칙 3) | 잘못된 none은 검색을 건너뛰어 답을 잃는다(router-v1의 A11 "eval 서버"). 반대로 잘못된 academic은 검색 한 번이 더 들 뿐이다 — 비용이 비대칭이라 망설이면 none이 아닌 쪽으로 보낸다 | 평가의 "라우팅 손실" 열 (`test_routing_loss_counts_only_misroutes_that_lost_the_evidence`) |
 | 라우터 효과는 같은 커밋·같은 날의 `baseline-v2`와 비교 | 3주차 baseline은 생성 프롬프트(오늘 날짜 규칙)가 달라 라우터 효과에 프롬프트 변화가 섞인다. 다른 날 재면 마감 관련 답이 달라져 날짜 변수가 섞인다 | 평가 meta의 `prompt_hash`·`commit`·`today`, 비교표 "측정일" 열 |
 | `none`·미수강 major는 임베딩·검색·생성 없이 안내만 | 범위 밖 질문에 비용이 들고, 모델이 일반 상식으로 답을 지어낼 여지가 생긴다 | `test_workflow_none_intent_answers_without_search_or_generation`, `test_workflow_none_intent_skips_embedding_and_search`, `test_workflow_major_intent_for_guest_explains_restriction`, `test_workflow_both_intent_for_guest_searches_academic_only_and_explains` |
 | `none_handled`가 `out_of_scope` 공지를 거절로 인정 | 라우터가 none을 잘 걸러도 none 처리 지표가 0%로 떨어져 보인다 | `test_none_handled_accepts_out_of_scope` |
@@ -71,6 +72,17 @@ question (str)
 - **Haiku 장애·타임아웃:** 지금은 예외가 그대로 올라간다(평가 실행이 멈춤). API의 503 변환과 한도 되돌림은 M3b(`UpstreamError`)에서 처리한다.
 - **분류 거절(`stop_reason == "refusal"`):** content를 읽지 않고 `both`·invalid로 처리한다.
 
+## 3-1. 측정 기록과 해석 (2026-10-13)
+
+| 실행 | 답변 정확도 | 의도 정확도 | 라우팅 손실 | recall@5 |
+|---|---|---|---|---|
+| baseline-v2 | 91.7% | — | — | 90.0% |
+| router-v1 | 86.1% | 72.2% | 1 (A11) | 86.7% |
+
+- **의도 정확도가 낮게 나오는 구조적 이유:** 평가셋의 `none`은 "우리 자료에 없음"(기숙사·졸업학점·개강일·주차 등)인데, 분류기는 자료 목록을 모르므로 이 질문들을 의미대로 `academic`으로 분류한다. 이런 오분류는 검색 후 "찾을 수 없다"로 거절되어 피해가 없다(none 처리 100%). 그래서 사용자 피해는 **라우팅 손실**(오분류 + 근거 못 찾음)로 본다.
+- **피해 없는 오분류:** 과목 이름이 든 학사 질문 → `both`. 학사 검색이 포함되어 답은 맞고 전공 검색이 한 번 더 돈다 → `classify.md` 규칙 1.
+- router-v2부터 `classify.md` 규칙 1~3을 적용했다. 평가셋 36문항에 문장을 맞추지 않고 "비용 비대칭" 원칙만 넣었다(과적합 방지).
+
 ## 4. 다음 수정
 
 - **M3b (4~5주차):** `/api/ask`가 `mode=settings.router_mode`로 이 함수를 부른다. 공급사 오류 → `UpstreamError` → 503.
@@ -80,6 +92,7 @@ question (str)
 
 ## 5. 업데이트 시 주의점
 
+- **`classify.md`를 고칠 때는 평가셋 문항을 보며 문장을 맞추지 않는다.** 36문항에 맞춘 규칙은 실제 질문에서 무너진다. 원칙(비용 비대칭, 운영 질문은 academic)만 넣고 라우팅 손실로 확인한다.
 - **`classify.md`를 고치면** `classify_prompt_hash`가 바뀐다. 이전 `router-*` 실행과 직접 비교하지 말고 같은 커밋에서 다시 잰다.
 - **`answer.md`를 고치면** 생성 프롬프트 해시(`prompt_hash`)가 바뀐다. 라우터 효과 비교용 `baseline-v*`도 같은 커밋·같은 날 다시 잰다.
 - **`render_context`(자료·날짜를 붙이는 코드)를 고치면 해시가 바뀌지 않는다** — `prompt_hash`는 `answer.md` 파일만 본다. 모델 입력은 바뀌었는데 기록은 같아 보이므로, 이때도 기준선을 다시 재고 커밋 해시로 구분한다.
