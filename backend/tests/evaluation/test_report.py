@@ -110,3 +110,11 @@ def test_report_shows_tool_error_count_so_outages_are_visible(tmp_path):
     row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-14-router-v1-abc"))
     cells = [c.strip() for c in row.strip("|").split("|")]
     assert cells[-1] == "2" and cells[-2] == "2026-10-14"  # 측정일, 도구 오류 건수
+
+
+def test_report_shows_routing_loss_count(tmp_path):
+    records = [dict(r, intent_ok=ok, tool_errors=0) for r, ok in zip(RECORDS, (True, False, False), strict=True)]
+    make_run(tmp_path, "2026-10-14-router-v2-abc", records, {"label": "router-v2", "mode": "workflow"})
+    row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-14-router-v2-abc"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert cells[7] == "1"  # A02: 오분류 + 근거 못 찾음. N01은 none 문항이라 제외

@@ -57,6 +57,13 @@ def intent_ok(item: EvalItem, answer: Answer) -> bool | None:
     return bool(answer.intent_valid) and answer.intent == item.intent
 
 
+def routing_loss(record: dict) -> bool | None:
+    """오분류 때문에 근거를 놓친 문항인가. 의도 정확도만 보면 피해 없는 오분류(academic→both 등)까지 같은 무게로 센다."""
+    if record.get("intent_ok") is None:
+        return None
+    return record["intent_ok"] is False and record["recall_at_k"] is False
+
+
 def rate(values: Iterable[bool | None]) -> float | None:
     known = [v for v in values if v is not None]
     return sum(known) / len(known) if known else None
