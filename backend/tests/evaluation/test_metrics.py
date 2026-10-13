@@ -2,7 +2,7 @@ import unicodedata
 
 from app.core.answer import CANNOT_ANSWER, NO_EVIDENCE, REFUSED, Answer, Source
 from evaluation.dataset import EvalItem, GoldSource
-from evaluation.metrics import none_handled, rate, recall_at_k, source_match
+from evaluation.metrics import intent_ok, none_handled, rate, recall_at_k, source_match
 from tests.fakes import make_hit
 
 ITEM = EvalItem("A01", "q", "academic", (GoldSource("academic/a.pdf", 2),), ("k",))
@@ -65,3 +65,27 @@ def test_source_match_with_nfc_normalization():
     # source file is NFD-encoded, but should match NFC gold via normalization
     sources = [Source(nfd_file, 2, None)]
     assert source_match(item, sources) is True
+
+
+BOTH_ITEM = EvalItem("B01", "q", "both", (GoldSource("academic/a.pdf", 2),), ("k",))
+
+
+def test_intent_ok_requires_valid_label():
+    assert intent_ok(BOTH_ITEM, Answer("a", [], True, intent="both", intent_valid=True)) is True
+    assert intent_ok(BOTH_ITEM, Answer("a", [], True, intent="both", intent_valid=False)) is False  # 형식 오류로 both 대체
+    assert intent_ok(ITEM, Answer("a", [], True, intent="major", intent_valid=True)) is False
+
+
+def test_intent_ok_is_none_for_baseline():
+    assert intent_ok(ITEM, Answer("a", [], True)) is None
+
+
+def test_none_handled_accepts_out_of_scope():
+    answer = Answer("범위 밖", [], True, notices=["out_of_scope"], intent="none", intent_valid=True)
+    assert none_handled(NONE_ITEM, answer) is True
+
+
+def test_none_handled_does_not_credit_decline_caused_by_tool_failure():
+    # 도구가 모두 실패해 근거가 없으면 no_evidence가 붙지만, 이는 거절을 잘한 게 아니라 장애다
+    broken = Answer(text=NO_EVIDENCE, sources=[], citation_ok=True, notices=["tool_error:search_academic", "no_evidence"])
+    assert none_handled(NONE_ITEM, broken) is False

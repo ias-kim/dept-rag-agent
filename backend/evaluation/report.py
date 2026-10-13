@@ -41,6 +41,7 @@ def summarize(meta: dict, records: list[dict], grading: dict[str, bool | None]) 
     graded = [grading.get(r["id"]) for r in records]
     return {
         "label": meta.get("label", ""),
+        "mode": meta.get("mode", "—"),  # 모드 기록 전(3주차) 실행은 "—"
         "prompt_hash": meta.get("prompt_hash", ""),
         "n": len(records),
         "recall_at_k": rate(r["recall_at_k"] for r in records),
@@ -48,6 +49,10 @@ def summarize(meta: dict, records: list[dict], grading: dict[str, bool | None]) 
         "none_handled": rate(r["none_handled"] for r in records),
         "citation_ok": rate(r["citation_ok"] for r in records),
         "answer_accuracy": rate(graded),
+        "intent_accuracy": rate(r.get("intent_ok") for r in records),
+        "today": meta.get("today", "—"),
+        # 기록 전(3주차) 실행은 세지 않았으므로 0이 아니라 "—"
+        "tool_errors": sum(r["tool_errors"] for r in records) if all("tool_errors" in r for r in records) else None,
         "graded": sum(g is not None for g in graded),
         "latency_p50_ms": round(statistics.median(r["latency_ms"] for r in records)) if records else None,
     }
@@ -59,13 +64,15 @@ def _pct(value: float | None) -> str:
 
 def render(rows: list[dict]) -> str:
     lines = [HEADER, "", "# 평가 비교표", "",
-             "| 실행 | 라벨 | 프롬프트 | 문항 | 답변 정확도 (채점 수) | recall@k | 출처 일치 | none 처리 | 인용 정상 | 응답 p50 |",
-             "|---|---|---|---|---|---|---|---|---|---|"]
+             ("| 실행 | 라벨 | 모드 | 프롬프트 | 문항 | 답변 정확도 (채점 수) | 의도 정확도 | recall@k | 출처 일치 "
+              "| none 처리 | 인용 정상 | 응답 p50 | 측정일 | 도구 오류 |"),
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
-        lines.append(f"| {r['name']} | {r['label']} | {r['prompt_hash']} | {r['n']} | "
-                     f"{_pct(r['answer_accuracy'])} ({r['graded']}) | {_pct(r['recall_at_k'])} | "
+        lines.append(f"| {r['name']} | {r['label']} | {r['mode']} | {r['prompt_hash']} | {r['n']} | "
+                     f"{_pct(r['answer_accuracy'])} ({r['graded']}) | {_pct(r['intent_accuracy'])} | {_pct(r['recall_at_k'])} | "
                      f"{_pct(r['source_match'])} | {_pct(r['none_handled'])} | {_pct(r['citation_ok'])} | "
-                     f"{'—' if r['latency_p50_ms'] is None else str(r['latency_p50_ms']) + 'ms'} |")
+                     f"{'—' if r['latency_p50_ms'] is None else str(r['latency_p50_ms']) + 'ms'} | {r['today']} | "
+                     f"{'—' if r['tool_errors'] is None else r['tool_errors']} |")
     return "\n".join(lines) + "\n"
 
 

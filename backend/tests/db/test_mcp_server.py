@@ -68,3 +68,10 @@ async def test_academic_search_is_open(session):
 async def test_empty_query_is_rejected(session):
     with pytest.raises(ToolError):
         await call(server_for(session, []), TOOL_ACADEMIC, {"query": "  "})
+
+
+async def test_non_string_query_is_rejected(session):
+    # 목록·숫자를 str()로 바꿔 검색하면 "['a']" 같은 엉뚱한 문자열로 검색된다 — 오류로 돌려준다
+    for bad in (["a"], 123, None):
+        with pytest.raises(ToolError, match="문자열"):
+            await call(server_for(session, []), TOOL_ACADEMIC, {"query": bad})

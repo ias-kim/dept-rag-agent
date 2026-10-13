@@ -6,7 +6,7 @@ import pytest
 
 from app.core.answer import Answer, Source
 from evaluation.dataset import EvalItem, GoldSource
-from evaluation.run import evaluate_item, prepare_run, require_frozen, run_items, write_run
+from evaluation.run import evaluate_item, main, prepare_run, require_frozen, run_items, write_run
 from tests.fakes import make_hit
 
 ITEM = EvalItem("A01", "정정 기간?", "academic", (GoldSource("academic/a.pdf", 2),), ("9월 8일",))
@@ -20,6 +20,19 @@ def test_evaluate_item_record():
     assert rec["recall_at_k"] is True and rec["source_match"] is True and rec["none_handled"] is None
     assert rec["sources"] == [{"file": "academic/a.pdf", "page": 2, "section": None}]
     assert rec["retrieved"] == [{"source": "academic/a.pdf", "page": 2, "score": 0.9}]
+    assert rec["predicted_intent"] is None and rec["intent_ok"] is None  # baseline 답변
+
+
+def test_evaluate_item_records_prediction_without_overwriting_gold_intent():
+    answer = Answer("a", [], True, intent="major", intent_valid=True)
+    rec = evaluate_item(ITEM, answer, 1)
+    assert rec["intent"] == "academic"  # 정답 라벨은 그대로
+    assert (rec["predicted_intent"], rec["intent_valid"], rec["intent_ok"]) == ("major", True, False)
+
+
+def test_unknown_mode_is_rejected_before_any_work():
+    with pytest.raises(SystemExit):
+        main(["--label", "x", "--mode", "nope"])
 
 
 @pytest.mark.anyio
@@ -83,3 +96,8 @@ def test_require_frozen_needs_frozen_file(tmp_path):
     q.write_text("- id: A\n", encoding="utf-8")
     with pytest.raises(ValueError, match="make eval-freeze"):
         require_frozen(q, tmp_path / "FROZEN")
+
+
+def test_evaluate_item_counts_tool_errors():
+    answer = Answer("a", [], True, notices=["tool_error:search_major", "no_evidence"])
+    assert evaluate_item(ITEM, answer, 1)["tool_errors"] == 1

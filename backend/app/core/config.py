@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     generation_max_tokens: int = 4096
     search_k: int = 5
     search_min_score: float = 0.0
+    classify_model: str = "claude-haiku-4-5-20251001"
+    classify_max_tokens: int = 16  # 라벨 한 단어만 받는다. 늘리면 설명이 붙어 형식 오류(→both)가 는다
+    router_mode: str = "workflow"  # "baseline" | "workflow" — app/core/pipeline.py MODES
 
 
 @lru_cache
