@@ -70,7 +70,10 @@ def build_server(
 
     async def call_tool(ctx, params) -> types.CallToolResult:
         args = params.arguments or {}
-        query = str(args.get("query", "")).strip()
+        raw_query = args.get("query", "")
+        if not isinstance(raw_query, str):  # str()로 바꾸면 "['a']"·"None" 같은 문자열로 엉뚱하게 검색된다
+            return _error("query는 문자열이어야 합니다")
+        query = raw_query.strip()
         if params.name == TOOL_ACADEMIC:
             scope, allowed = "academic", frozenset()
         elif params.name == TOOL_MAJOR and user.courses:
