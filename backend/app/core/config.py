@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     jwt_secret: str = ""  # 32자 이상. 비거나 짧으면 토큰 발급·검증을 모두 거부한다 (app/core/security.py)
     jwt_ttl_hours: int = 12
     default_daily_quota: int = 50
+    login_max_failures: int = 5  # (IP, 아이디)마다 이 횟수를 넘겨 실패하면 창이 지날 때까지 429
+    login_window_minutes: int = 15
 
 
 @lru_cache

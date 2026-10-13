@@ -73,10 +73,12 @@
       "LoginRequest": {
         "properties": {
           "password": {
+            "maxLength": 256,
             "title": "Password",
             "type": "string"
           },
           "username": {
+            "maxLength": 64,
             "title": "Username",
             "type": "string"
           }

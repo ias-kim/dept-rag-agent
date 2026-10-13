@@ -15,19 +15,22 @@
 ## 2. 데이터 흐름
 
 ```
-POST /api/auth/login {username, password}
- → find_user → verify_password(없는 계정도 더미 해시로 검증)
+POST /api/auth/login {username ≤64자, password ≤256자}       → 길이 초과 422
+ → JWT_SECRET 32자 미만이면 503 (비밀번호 확인 전에 멈춤)
+ → (접속 IP, 아이디) 최근 15분 실패 5회 이상이면 429
+ → find_user → verify_password(없는 계정도 더미 해시로 검증) → 실패 기록·401 / 성공 시 기록 초기화
  → issue_token(user_id, JWT_SECRET, 12h) → {access_token, token_type: "bearer"}
 
 POST /api/ask {question}   Authorization: Bearer <token>
+ ├ current_user: JWT_SECRET 확인(503) → decode_token → get_user(삭제 계정이면 401) → user_courses(DB)
+ │   (FastAPI는 의존성을 본문 검증보다 먼저 푼다 — 토큰이 틀리면 질문이 비어도 401)
  ├ AskRequest 검증: 앞뒤 공백 제거, 1~500자          → 실패 422 (한도 차감 전)
- ├ current_user: decode_token → get_user(삭제 계정이면 401) → user_courses(DB)
  ├ consume_quota(user, 서울 날짜, daily_quota)        → 실패 429 (롤백)
  ├ commit (차감 확정)
  ├ answer_fn(question, UserContext(user_id, courses), session)
  │    └ answer_question: 질문 임베딩을 MCP 도구 전에 먼저 계산 → 도구 → 생성
- │      anthropic/openai APIError → UpstreamError
- ├ UpstreamError → refund_quota + commit → 503
+ │      공급사 연결 실패·시간 초과·5xx·429 → UpstreamError (4xx는 그대로 500)
+ ├ UpstreamError → rollback → refund_quota + commit → 503
  └ {answer, sources[{file,page,section}], intent, notices}
 ```
 
@@ -36,15 +39,19 @@ POST /api/ask {question}   Authorization: Bearer <token>
 | 조건 | 깨지면 생기는 문제 | 지키는 장치 |
 |---|---|---|
 | `JWT_SECRET`이 32자 미만이면 발급·검증 모두 거부 | 기본값 `""`로 서명되면 누구나 같은 키로 토큰을 위조해 아무 학생으로 행세한다 | `test_short_secret_is_refused` |
+| 키가 없을 때는 비밀번호 확인 전에 같은 503 | 맞는 비밀번호만 500(토큰 발급 실패)이 나면 비밀번호 정답 여부가 새어 나가 무차별 대입 오라클이 된다 | `test_missing_jwt_secret_does_not_reveal_password_correctness` |
+| (IP, 아이디)마다 15분에 5회 실패하면 맞는 비밀번호도 429 | 시도 제한이 없으면 비밀번호를 무한히 맞혀 볼 수 있다. 아이디만 키로 쓰면 남의 계정을 일부러 잠글 수 있다 | `test_repeated_login_failures_are_throttled_per_ip_and_username`, `test_block_lifts_after_window` |
+| 로그인 입력 길이 상한(아이디 64·비밀번호 256) | 아주 긴 비밀번호로 argon2 해싱 부하를 줘 서버를 붙잡을 수 있다 | `test_login_input_length_is_limited` |
 | `decode_token`은 `algorithms=["HS256"]` 고정, `exp`·`sub` 필수 | `alg: none` 토큰이 서명 없이 통과하거나, 만료 없는 영구 토큰이 생긴다 | `test_decode_rejects_missing_sub_and_none_alg`, `test_decode_rejects_expired_token` |
 | 토큰에는 user_id만, 과목은 요청마다 DB에서 | 수강 취소·게스트 전환이 토큰 만료 전까지 반영되지 않는다 | `test_token_round_trip_carries_only_user_id`, `test_guest_courses_come_from_db_not_token` |
 | 토큰의 계정이 지금 DB에 있어야 한다 | 삭제한 계정의 토큰으로 12시간 동안 계속 질문한다 | `test_ask_rejects_token_of_deleted_user` |
-| 없는 계정·틀린 비밀번호는 같은 401·같은 문구·같은 검증 비용 | 응답 문구나 시간 차이로 어떤 아이디가 존재하는지 알아낼 수 있다 | `test_login_failures_are_indistinguishable`, `verify_password`의 더미 해시 |
+| 없는 계정·틀린 비밀번호는 같은 401·같은 문구·같은 검증 비용 | 응답 문구나 시간 차이로 어떤 아이디가 존재하는지 알아낼 수 있다. 더미 해시를 첫 호출 때 만들면 기동 뒤 첫 요청만 느려진다 | `test_login_failures_are_indistinguishable`, 모듈 로딩 때 만드는 `_DUMMY_HASH` |
 | 입력 검증(422) → 한도(429) → 답변 순서 | 빈 질문·500자 초과 질문에도 한도가 깎인다 | `test_invalid_question_does_not_consume_quota` |
-| 한도 증가는 `INSERT … ON CONFLICT … WHERE count < limit` 한 문장 | 읽고-비교하고-쓰면 동시 요청이 같은 값을 읽어 한도를 넘긴다 | `test_consume_stops_at_limit` |
+| 한도 증가는 `INSERT … ON CONFLICT … WHERE count < limit` 한 문장 | 읽고-비교하고-쓰면 동시 요청이 같은 값을 읽어 한도를 넘긴다 | `test_consume_stops_at_limit`, `test_concurrent_requests_cannot_exceed_limit` |
 | 0 한도는 코드에서 먼저 거부 | 첫 INSERT는 WHERE를 거치지 않아 0 한도 계정도 하루 1번 통과한다 | `test_zero_quota_never_consumes` |
-| 공급사 장애(503)일 때만 한도를 되돌린다 | 장애로 답을 못 받은 학생이 한도를 잃거나(되돌리지 않음), 4xx까지 되돌리면 잘못된 요청으로 무한 재시도가 가능하다 | `test_upstream_error_refunds_quota` |
-| 질문 임베딩은 MCP 도구 호출 전에 계산 | 임베딩 장애가 도구 안에서 `tool_error`로 삼켜져 "자료 없음" 답이 나가고, 503이 아니라서 한도도 되돌려지지 않는다 | `test_embedding_failure_surfaces_instead_of_becoming_no_evidence` |
+| 공급사 장애(연결 실패·시간 초과·5xx·429)일 때만 503과 한도 되돌림 | 장애로 답을 못 받은 학생이 한도를 잃는다. 반대로 공급사 4xx(잘못된 요청·인증)까지 되돌리면 생성에서 400이 나는 질문을 한도 소모 없이 반복해 분류 비용만 쌓을 수 있다 | `test_upstream_error_refunds_quota`, `test_provider_outage_becomes_upstream_error`, `test_provider_client_error_is_not_treated_as_outage` |
+| 질문 임베딩은 MCP 도구 호출 전에 계산 | 임베딩 장애가 도구 안에서 `tool_error`로 삼켜져 "자료 없음" 답이 나가고, 503이 아니라서 한도도 되돌려지지 않는다. (평가 실행은 이제 임베딩 장애에서 멈춘다 — 장애가 섞인 측정을 남기지 않는 쪽) | `test_embedding_failure_surfaces_instead_of_becoming_no_evidence` |
+| 비밀번호 옵션은 약어를 받지 않는다(`allow_abbrev=False`) | `--password`가 `--password-stdin`으로 해석돼 사용자가 비밀번호를 인자로 넘겼다고 착각한다 | `test_password_option_prefix_is_not_accepted_as_abbreviation` |
 | 비밀번호는 getpass·`--password-stdin`으로만 | argv에 넣으면 셸 기록·프로세스 목록에 남는다 | `test_password_cannot_be_passed_as_argument` |
 | `upsert_user`는 과목을 통째로 교체 | 빠진 과목의 `enrollments` 행이 남아 수강 취소 과목의 전공 자료가 계속 보인다 | `test_upsert_replaces_courses_and_password` |
 | 한도 날짜는 서울 기준 | 서버(UTC)에서 한국 오전 9시에 한도가 초기화된다 | `seoul_today`, `test_seoul_date_rolls_over_at_15_utc` |
@@ -56,15 +63,16 @@ POST /api/ask {question}   Authorization: Bearer <token>
 ## 4. 다음 수정
 
 - **M4 (5주차) 화면:** 프론트가 `sessionStorage`에 토큰을 두고 `Authorization: Bearer`로 보낸다. 401이면 로그인 화면으로.
-- **배포:** EC2의 `.env`에 `JWT_SECRET`(예: `python -c "import secrets; print(secrets.token_urlsafe(48))"`)을 넣는다. 비면 로그인이 전부 실패한다(의도된 동작).
-- **로그인 시도 제한:** 아직 없다. 공개 배포 전에 IP·계정별 실패 횟수 제한을 검토한다.
+- **배포:** EC2의 `.env`에 `JWT_SECRET`(예: `python -c "import secrets; print(secrets.token_urlsafe(48))"`)을 넣는다. 비면 로그인·질문이 모두 503이다(의도된 동작).
+- **프록시 뒤 배포(Caddy):** 시도 제한의 IP는 `request.client.host`다. 프록시 뒤에서는 모두 프록시 IP로 보이므로 uvicorn을 `--proxy-headers --forwarded-allow-ips`로 띄워 실제 접속 IP를 받는다. 그러지 않으면 제한이 아이디 단위로만 동작한다.
+- **시도 제한 저장소:** 프로세스 메모리. 서버를 여러 대로 늘리거나 재시작하면 기록이 사라진다 — 늘릴 때 DB·Redis로 옮긴다.
 - **로그:** 요청 로그(JSON 한 줄)는 로깅 모듈을 만들 때 추가한다(AGENTS.md "로그").
 
 ## 5. 업데이트 시 주의점
 
 - **라우트를 바꾸면** `make generate`로 `docs/generated/openapi.json`을 갱신해 같은 커밋에 넣는다(게이트 1 스냅샷 테스트).
 - **`ask`의 순서(검증 → 차감 → 커밋 → 답변 → 503 되돌림)를 바꾸지 않는다.** 차감 커밋을 답변 뒤로 미루면 답변이 도는 동안 같은 학생의 동시 요청이 한도를 넘는다.
-- **새 공급사 오류 타입**(예: 다른 임베딩 공급사)을 쓰면 `get_answer_fn`의 `except`에 추가해야 503·되돌림이 동작한다.
+- **새 공급사 오류 타입**(예: 다른 임베딩 공급사)을 쓰면 `get_answer_fn`의 `except`와 `is_provider_outage`에 추가해야 503·되돌림이 동작한다.
 - **`backend/app/api/`, `backend/app/core/security.py`는 위험 경로**다 — 바꾸면 게이트 3(교차 모델 리뷰).
 - **토큰 payload에 필드를 추가하지 않는다.** 필요한 정보는 `current_user`에서 DB로 읽는다.
 
@@ -73,7 +81,8 @@ POST /api/ask {question}   Authorization: Bearer <token>
 | 파일 | 역할 |
 |---|---|
 | `backend/app/api/routes.py` | `/api/auth/login`, `/api/ask`, 요청·응답 모델 |
-| `backend/app/api/deps.py` | 세션, `current_user`, `get_answer_fn`(공급사 오류 → `UpstreamError`) |
+| `backend/app/api/deps.py` | 세션, `current_user`, `get_answer_fn`(공급사 장애 → `UpstreamError`), `get_login_throttle` |
+| `backend/app/api/throttle.py` | 로그인 시도 제한(메모리) |
 | `backend/app/core/security.py` | argon2 비밀번호, HS256 토큰 |
 | `backend/app/core/users.py` | `make users` 계정 CLI |
 | `backend/app/db/accounts.py`, `usage.py` | 계정·수강 저장소, 원자 한도 |

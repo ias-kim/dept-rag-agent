@@ -5,7 +5,6 @@
 """
 
 from datetime import UTC, datetime, timedelta
-from functools import lru_cache
 
 import jwt
 from argon2 import PasswordHasher
@@ -20,9 +19,8 @@ class InvalidToken(Exception):
     """만료·위조·형식 오류 토큰."""
 
 
-@lru_cache
-def _dummy_hash() -> str:
-    return _hasher.hash("dummy-password-for-constant-time")
+# 모듈을 읽을 때 미리 만든다. 첫 호출에 만들면 서버 기동 뒤 첫 '없는 계정' 로그인만 느려져 계정 존재가 드러난다
+_DUMMY_HASH = _hasher.hash("dummy-password-for-constant-time")
 
 
 def hash_password(password: str) -> str:
@@ -32,14 +30,18 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, password_hash: str | None) -> bool:
     """사용자가 없어도(None) 더미 해시로 한 번 검증한다. 건너뛰면 응답 시간 차이로 계정 존재 여부가 드러난다."""
     try:
-        _hasher.verify(password_hash if password_hash is not None else _dummy_hash(), password)
+        _hasher.verify(password_hash if password_hash is not None else _DUMMY_HASH, password)
     except (VerificationError, InvalidHashError):
         return False
     return password_hash is not None
 
 
+def is_secret_configured(secret: str) -> bool:
+    return len(secret) >= MIN_SECRET_CHARS
+
+
 def _require_secret(secret: str) -> None:
-    if len(secret) < MIN_SECRET_CHARS:  # 빈 키로 서명하면 누구나 토큰을 위조할 수 있다
+    if not is_secret_configured(secret):  # 빈 키로 서명하면 누구나 토큰을 위조할 수 있다
         raise ValueError(f"JWT_SECRET이 비었거나 {MIN_SECRET_CHARS}자 미만입니다")
 
 

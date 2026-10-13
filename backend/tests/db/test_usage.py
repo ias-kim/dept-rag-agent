@@ -35,3 +35,23 @@ def test_refund_gives_back_one_and_never_goes_negative(session):
     refund_quota(session, uid, DAY)
     refund_quota(session, uid, DAY)
     assert used_on(session, uid, DAY) == 0
+
+
+def test_concurrent_requests_cannot_exceed_limit(session, engine):
+    # 읽고-비교하고-쓰면 동시 요청이 같은 값을 읽어 한도를 넘는다 — 한 문장 원자 증가로 막는다
+    from concurrent.futures import ThreadPoolExecutor
+
+    from sqlalchemy.orm import Session
+
+    uid = make_user(session, quota=1)
+    session.commit()
+
+    def attempt(_):
+        with Session(engine) as s:
+            ok = consume_quota(s, uid, DAY, limit=1)
+            s.commit()
+            return ok
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(attempt, range(8)))
+    assert results.count(True) == 1

@@ -6,10 +6,20 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, StringConstraints
 
-from app.api.deps import AnswerFn, AuthedUser, SessionDep, SettingsDep, current_user, get_answer_fn
+from app.api.deps import (
+    AnswerFn,
+    AuthedUser,
+    SessionDep,
+    SettingsDep,
+    current_user,
+    get_answer_fn,
+    get_login_throttle,
+    require_auth_configured,
+)
+from app.api.throttle import LoginThrottle
 from app.core.clock import seoul_today
 from app.core.pipeline import UpstreamError
 from app.core.security import issue_token, verify_password
@@ -21,9 +31,13 @@ QUESTION_MAX_CHARS = 500
 router = APIRouter(prefix="/api")
 
 
+USERNAME_MAX_CHARS = 64  # DB 컬럼 VARCHAR(64)와 같다
+PASSWORD_MAX_CHARS = 256  # 상한이 없으면 아주 긴 비밀번호로 argon2 해싱 부하를 줄 수 있다
+
+
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: Annotated[str, StringConstraints(max_length=USERNAME_MAX_CHARS)]
+    password: Annotated[str, StringConstraints(max_length=PASSWORD_MAX_CHARS)]
 
 
 class TokenResponse(BaseModel):
@@ -49,11 +63,18 @@ class AskResponse(BaseModel):
 
 
 @router.post("/auth/login", response_model=TokenResponse)
-def login(body: LoginRequest, session: SessionDep, settings: SettingsDep) -> TokenResponse:
+def login(body: LoginRequest, request: Request, session: SessionDep, settings: SettingsDep,
+          throttle: Annotated[LoginThrottle, Depends(get_login_throttle)]) -> TokenResponse:
+    require_auth_configured(settings)
+    key = (request.client.host if request.client else "", body.username)
+    if throttle.is_blocked(key):  # 맞는 비밀번호도 막아야 반복 추측이 의미 없어진다
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요")
     user = find_user(session, body.username)
     # 없는 계정과 틀린 비밀번호를 같은 문구·같은 검증 비용으로 처리해 계정 존재를 드러내지 않는다
     if not verify_password(body.password, user.password_hash if user else None):
+        throttle.record_failure(key)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다")
+    throttle.reset(key)
     return TokenResponse(access_token=issue_token(user.id, secret=settings.jwt_secret, ttl_hours=settings.jwt_ttl_hours))
 
 
@@ -68,6 +89,7 @@ async def ask(body: AskRequest, user: Annotated[AuthedUser, Depends(current_user
     try:
         answer = await answer_fn(body.question, UserContext(user.user_id, user.courses), session)
     except UpstreamError:
+        session.rollback()  # 도구 안의 DB 오류로 세션이 실패 상태면 되돌리기 자체가 실패해 500이 된다
         refund_quota(session, user.user_id, day)
         session.commit()
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "답변 서비스가 잠시 응답하지 않습니다") from None

@@ -31,9 +31,9 @@ def add_user(session: Session, username: str, password: str, *, courses: str, qu
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m app.core.users")
+    parser = argparse.ArgumentParser(prog="python -m app.core.users", allow_abbrev=False)
     sub = parser.add_subparsers(dest="command", required=True)
-    add = sub.add_parser("add", help="계정 생성 또는 갱신(비밀번호·과목·한도 덮어씀)")
+    add = sub.add_parser("add", help="계정 생성 또는 갱신(비밀번호·과목·한도 덮어씀)", allow_abbrev=False)
     add.add_argument("username")
     add.add_argument("--courses", default="", help="쉼표로 구분한 과목 코드. 비우면 게스트(학사만)")
     add.add_argument("--quota", type=int, default=None, help="일일 질문 한도 (기본: 설정값)")

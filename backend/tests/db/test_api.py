@@ -1,7 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_answer_fn, get_session
+from app.api.deps import get_answer_fn, get_login_throttle, get_session
+from app.api.throttle import LoginThrottle
 from app.core.answer import Answer, Source
 from app.core.clock import seoul_today
 from app.core.config import Settings, get_settings
@@ -34,6 +35,8 @@ def api(session):
     app.dependency_overrides[get_session] = lambda: session
     app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, jwt_secret=SECRET)
     app.dependency_overrides[get_answer_fn] = lambda: fake
+    throttle = LoginThrottle(max_failures=5, window_seconds=900)  # 테스트마다 새로 — 실패 기록이 다른 테스트로 새지 않게
+    app.dependency_overrides[get_login_throttle] = lambda: throttle
     yield TestClient(app), fake
     app.dependency_overrides.clear()
 
@@ -118,3 +121,43 @@ def test_guest_courses_come_from_db_not_token(api, session):
     user = make_account(session, courses=frozenset())
     client.post("/api/ask", json={"question": "q"}, headers=auth(user.id))
     assert fake.calls[0][1].courses == frozenset()
+
+
+def test_repeated_login_failures_are_throttled_per_ip_and_username(api, session):
+    # 시도 제한이 없으면 비밀번호를 무한히 맞혀 볼 수 있다
+    client, _ = api
+    make_account(session)
+    for _ in range(5):
+        assert client.post("/api/auth/login", json={"username": "kim", "password": "nope-nope"}).status_code == 401
+    blocked = client.post("/api/auth/login", json={"username": "kim", "password": "password123"})
+    assert blocked.status_code == 429  # 맞는 비밀번호도 막혀야 추측이 의미 없어진다
+    other = client.post("/api/auth/login", json={"username": "ghost", "password": "nope-nope"})
+    assert other.status_code == 401
+
+
+def test_successful_login_clears_failures(api, session):
+    client, _ = api
+    make_account(session)
+    for _ in range(4):
+        client.post("/api/auth/login", json={"username": "kim", "password": "nope-nope"})
+    assert client.post("/api/auth/login", json={"username": "kim", "password": "password123"}).status_code == 200
+    for _ in range(4):
+        assert client.post("/api/auth/login", json={"username": "kim", "password": "nope-nope"}).status_code == 401
+
+
+def test_missing_jwt_secret_does_not_reveal_password_correctness(api, session):
+    # 키가 비었을 때 맞는 비밀번호만 500이 나면 비밀번호 정답 여부가 새어 나간다
+    client, _ = api
+    make_account(session)
+    app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, jwt_secret="")
+    right = client.post("/api/auth/login", json={"username": "kim", "password": "password123"})
+    wrong = client.post("/api/auth/login", json={"username": "kim", "password": "nope-nope"})
+    assert right.status_code == wrong.status_code == 503 and right.json() == wrong.json()
+    assert client.post("/api/ask", json={"question": "q"}, headers={"Authorization": "Bearer x"}).status_code == 503
+
+
+def test_login_input_length_is_limited(api, session):
+    # 아주 긴 비밀번호는 argon2 해싱 부하로 서버를 붙잡는다
+    client, _ = api
+    assert client.post("/api/auth/login", json={"username": "k" * 65, "password": "p"}).status_code == 422
+    assert client.post("/api/auth/login", json={"username": "kim", "password": "p" * 257}).status_code == 422
