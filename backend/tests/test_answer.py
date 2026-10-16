@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.core.answer import (
     CANNOT_ANSWER,
     EMPTY,
@@ -117,3 +119,15 @@ def test_cannot_answer_phrase_with_extra_claim_is_flagged():
     # 게이트 3 P2: 거절 문구 뒤에 인용 없는 주장을 덧붙이면 면제되지 않는다
     answer = generate_answer(FakeLLM(f"{CANNOT_ANSWER}. 실제로는 9월 1일입니다."), "q", [make_hit(7)], **OPTS)
     assert answer.notices == ["no_citation"] and answer.citation_ok is False
+
+
+def test_today_is_given_to_the_model_when_provided():
+    llm = FakeLLM("답[C12].")
+    generate_answer(llm, "q", [make_hit(12)], today=date(2026, 9, 30), **OPTS)
+    assert llm.calls[0]["messages"][0]["content"].startswith("오늘 날짜: 2026-09-30\n")
+
+
+def test_no_today_keeps_context_unchanged():
+    llm = FakeLLM("답[C12].")
+    generate_answer(llm, "q", [make_hit(12)], **OPTS)
+    assert llm.calls[0]["messages"][0]["content"].startswith("<자료>")

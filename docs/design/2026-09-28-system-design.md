@@ -94,11 +94,11 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 | A 수강생이 `course_code=B` | 0건 |
 | MCP 우회해 `db.search` 직접 호출 | 필터 유지 |
 
-**일일 한도**: LLM 호출 전 `INSERT … ON CONFLICT DO UPDATE SET count = count + 1 RETURNING count`. 초과 429. LLM 오류(503) 시 되돌림.
+**일일 한도**: LLM 호출 전 `INSERT … ON CONFLICT DO UPDATE SET count = count + 1 WHERE count < limit RETURNING count`(0 한도는 코드에서 거부 — 첫 INSERT는 WHERE를 거치지 않음). 날짜는 서울 기준. 순서는 입력 검증(422) → 한도(429) → 답변. LLM·임베딩 공급사 오류(503) 시 되돌림 — 임베딩은 MCP 도구 호출 전에 계산해 장애가 "자료 없음"으로 삼켜지지 않게 한다.
 
 ## 5. 라우터와 에이전트
 
-- `ROUTER_MODE=workflow|agent` 설정으로 전환. 분류는 Haiku 계열, 생성·에이전트는 Sonnet 계열(생성 기본값 claude-sonnet-5-5 / effort medium, 거절 시 fallbacks "default"). 모델 ID는 설정값.
+- `ROUTER_MODE` 설정으로 전환: 현재 `baseline|workflow`(4주차), `agent`는 6주차에 추가. 분류는 Haiku 계열(분류 기본값 claude-haiku-4-5-20251001, 샘플링·effort 미사용), 생성·에이전트는 Sonnet 계열(생성 기본값 claude-sonnet-5-5 / effort medium, 거절 시 fallbacks "default"). 모델 ID는 설정값.
 - 프롬프트는 `backend/app/core/prompts/*.md`. 평가 실행마다 프롬프트 해시 기록.
 
 **처리 표 (`plan()`)**
@@ -127,7 +127,7 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 | 시점 | 모드 | 검색 | 목적 |
 |---|---|---|---|
 | 3주차 | 라우터 없음(권한 내 전체 검색) | 벡터 | 기준선 |
-| 4주차 | workflow | 벡터 | 의도 정확도, 라우터 효과 |
+| 4주차 | workflow | 벡터 | 의도 정확도, 라우터 효과 — 기준선은 같은 코드로 `baseline-v2` 재측정(오늘 날짜 주입으로 생성 프롬프트가 바뀜) |
 | 7주차 | workflow | 벡터/하이브리드 | 검색 개선 효과 |
 | 7주차 | agent | 동일 | 워크플로우 대 에이전트 |
 
@@ -157,7 +157,8 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 | S | 지금 | 스파이크: MCP 2.2 메모리 전송 API, pgvector 부분 HNSW·1536차원, 공용 계정 IAM 역할 생성 가능 여부 | exec-plan에 결과 기록 |
 | M1 | 2 | Alembic 스키마, PDF 추출·분할·임베딩, 해시 동기화(로컬 폴더), `db.search` 필터 | 권한 테스트 행렬 통과 |
 | M2 | 3 | MCP 서버 2도구, 생성·출처 검증, 평가셋 작성·동결, `make eval` | 기준선 1차 측정 |
-| M3 | 4 | 로그인·JWT·CLI·일일 한도, `classify`/`plan`, `/api/ask` | 의도 정확도, 라우터 효과 |
+| M3a | 4 | `classify`/`plan`, workflow 모드, 평가 `MODE`·의도 정확도 | 의도 정확도, 라우터 효과 |
+| M3b | 4~5 | 로그인·JWT·CLI·일일 한도, `/api/ask` | API로 질문·답변, 한도 동작 |
 | M4 | 5 | 화면 2종, Docker, CloudFormation, Caddy, 얇은 배포 | HTTPS URL에서 질문·답변 |
 | M5 | 6 | 에이전트 루프, 통합 테스트, 권한 설계 문서 | agent 모드 평가 실행 |
 | M6 | 7 | 실패 분석·하이브리드(필요 시), S3 동기화, 2차 측정 | 비교표 |

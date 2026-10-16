@@ -64,15 +64,25 @@ def make_hit(chunk_id: int, source: str = "academic/a.pdf", page: int = 1,
 
 
 class FakeLLM:
-    """anthropic 클라이언트 대역. beta.messages.create 호출 인자를 기록하고 정해진 답을 돌려준다."""
+    """anthropic 클라이언트 대역. 생성(beta.messages.create)과 분류(messages.create) 호출을 따로 기록한다."""
 
-    def __init__(self, text: str = "", stop_reason: str = "end_turn"):
+    def __init__(self, text: str = "", stop_reason: str = "end_turn", *, classify_text: str = "academic",
+                 classify_stop: str = "end_turn"):
         self.calls: list[dict] = []
+        self.classify_calls: list[dict] = []
         self.text = text
         self.stop_reason = stop_reason
+        self.classify_text = classify_text
+        self.classify_stop = classify_stop
         self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
+        self.messages = SimpleNamespace(create=self._classify)
 
     def _create(self, **kwargs):
         self.calls.append(kwargs)
         content = [SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=self.text)]
         return SimpleNamespace(stop_reason=self.stop_reason, content=content if self.stop_reason != "refusal" else [])
+
+    def _classify(self, **kwargs):
+        self.classify_calls.append(kwargs)
+        content = [SimpleNamespace(type="text", text=self.classify_text)] if self.classify_stop != "refusal" else []
+        return SimpleNamespace(stop_reason=self.classify_stop, content=content)

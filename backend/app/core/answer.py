@@ -7,6 +7,7 @@ import hashlib
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,8 @@ class Answer:
     citation_ok: bool
     notices: list[str] = field(default_factory=list)
     retrieved: list[ChunkHit] = field(default_factory=list)
+    intent: str | None = None  # workflow 모드의 분류 결과. baseline이면 None
+    intent_valid: bool | None = None  # False = 분류 형식 오류로 both 대체 → 평가에서 오답
 
 
 def system_prompt() -> str:
@@ -56,12 +59,14 @@ def make_llm(settings: Settings) -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.anthropic_api_key or None)
 
 
-def render_context(question: str, hits: Sequence[ChunkHit]) -> str:
+def render_context(question: str, hits: Sequence[ChunkHit], today: date | None = None) -> str:
+    """today가 없으면 모델은 지난 공지(마감·휴강)를 아직 유효한 것처럼 안내한다."""
     blocks = []
     for h in hits:
         where = f"{h.source} p.{h.page}" + (f" {h.section}" if h.section else "")
         blocks.append(f"[C{h.chunk_id}] ({where})\n{h.text}")
-    return "<자료>\n" + "\n\n".join(blocks) + "\n</자료>\n\n질문: " + question
+    context = "<자료>\n" + "\n\n".join(blocks) + "\n</자료>\n\n질문: " + question
+    return f"오늘 날짜: {today.isoformat()}\n\n{context}" if today else context
 
 
 def is_cannot_answer(text: str) -> bool:
@@ -102,7 +107,7 @@ def verify_citations(raw: str, hits: Sequence[ChunkHit]) -> Answer:
 
 
 def generate_answer(llm: Any, question: str, hits: Sequence[ChunkHit], *, model: str, effort: str,
-                    max_tokens: int) -> Answer:
+                    max_tokens: int, today: date | None = None) -> Answer:
     if not hits:
         return Answer(text=NO_EVIDENCE, sources=[], citation_ok=True, notices=["no_evidence"])
     response = llm.beta.messages.create(
@@ -112,7 +117,7 @@ def generate_answer(llm: Any, question: str, hits: Sequence[ChunkHit], *, model:
         fallbacks="default",
         output_config={"effort": effort},
         system=system_prompt(),
-        messages=[{"role": "user", "content": render_context(question, hits)}],
+        messages=[{"role": "user", "content": render_context(question, hits, today)}],
     )
     if response.stop_reason == "refusal":
         return Answer(text=REFUSED, sources=[], citation_ok=True, notices=["refused"], retrieved=list(hits))

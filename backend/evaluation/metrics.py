@@ -38,8 +38,30 @@ def none_handled(item: EvalItem, answer: Answer) -> bool | None:
     """none 문항: 출처를 내지 않았고 + 거절/근거없음 공지가 있거나 "찾을 수 없다"고 답해야 통과."""
     if item.intent != "none":
         return None
-    declined = bool({"no_evidence", "refused"} & set(answer.notices)) or is_cannot_answer(answer.text)
+    # out_of_scope: workflow가 none 의도를 검색·생성 없이 거절한 경우. 빠지면 라우터가 잘 거절해도 실패로 집계된다
+    declined = bool({"no_evidence", "refused", "out_of_scope"} & set(answer.notices)) or is_cannot_answer(answer.text)
+    # 도구 장애로 근거가 0건이 되어 붙은 no_evidence를 '잘 거절했다'로 세면 장애가 점수를 올린다
+    if count_tool_errors(answer) > 0:
+        return False
     return not answer.sources and declined
+
+
+def count_tool_errors(answer: Answer) -> int:
+    return sum(1 for n in answer.notices if n.startswith("tool_error:"))
+
+
+def intent_ok(item: EvalItem, answer: Answer) -> bool | None:
+    """workflow 실행만 채점. 형식 오류로 both가 된 경우는 정답 라벨이 both여도 오답(설계 §5)."""
+    if answer.intent is None:
+        return None
+    return bool(answer.intent_valid) and answer.intent == item.intent
+
+
+def routing_loss(record: dict) -> bool | None:
+    """오분류 때문에 근거를 놓친 문항인가. 의도 정확도만 보면 피해 없는 오분류(academic→both 등)까지 같은 무게로 센다."""
+    if record.get("intent_ok") is None:
+        return None
+    return record["intent_ok"] is False and record["recall_at_k"] is False
 
 
 def rate(values: Iterable[bool | None]) -> float | None:

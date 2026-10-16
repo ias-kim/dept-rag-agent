@@ -20,9 +20,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.answer import Answer, make_llm, prompt_hash
+from app.core.clock import seoul_today
 from app.core.config import get_settings
 from app.core.embeddings import OpenAIEmbedder
-from app.core.pipeline import PipelineDeps, answer_question
+from app.core.pipeline import MODES, PipelineDeps, answer_question
+from app.core.router import classify_prompt_hash
 from app.db.models import Document
 from app.db.session import make_engine
 from app.mcp.server import UserContext
@@ -35,7 +37,14 @@ from evaluation.dataset import (
     load_items,
     sha256_of,
 )
-from evaluation.metrics import none_handled, rate, recall_at_k, source_match
+from evaluation.metrics import (
+    count_tool_errors,
+    intent_ok,
+    none_handled,
+    rate,
+    recall_at_k,
+    source_match,
+)
 
 GRADING_FIELDS = ["id", "question", "answer", "key_points", "key_points_ok", "no_hallucination", "note"]
 
@@ -75,6 +84,12 @@ def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
         "source_match": source_match(item, answer.sources),
         "none_handled": none_handled(item, answer),
         "key_points": list(item.key_points),
+        # "intent"는 문항의 정답 라벨이다. 분류기 출력을 같은 이름에 쓰면 정답이 덮여 의도 정확도를 잴 수 없다
+        "predicted_intent": answer.intent,
+        "intent_valid": answer.intent_valid,
+        "intent_ok": intent_ok(item, answer),
+        # 도구 장애는 답변을 막지 않고 공지로만 남는다 — 세어 두지 않으면 recall 하락이 장애 때문인지 안 보인다
+        "tool_errors": count_tool_errors(answer),
     }
 
 
@@ -117,6 +132,8 @@ def _commit() -> str:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m evaluation.run")
     parser.add_argument("--label", required=True)
+    # 기본값은 설정의 router_mode가 아니라 baseline — 설정이 바뀌어도 평가 모드가 조용히 바뀌지 않게 명시적으로 고른다
+    parser.add_argument("--mode", choices=MODES, default="baseline")
     args = parser.parse_args(argv)
     commit = _commit()
     name = prepare_run(args.label, REPO_ROOT / "eval", commit, datetime.now().astimezone().date())
@@ -130,13 +147,17 @@ def main(argv: list[str] | None = None) -> None:
         courses = frozenset(c for c in session.scalars(select(Document.course_code).distinct()) if c)
         deps = PipelineDeps(session=session, embed_query=lambda q: embedder.embed([q])[0], llm=llm, settings=settings)
         user = UserContext(user_id=0, courses=courses)
-        records = anyio.run(run_items, items, lambda q: answer_question(q, user, deps))
+        records = anyio.run(run_items, items, lambda q: answer_question(q, user, deps, mode=args.mode))
     meta = {"label": args.label, "commit": commit, "eval_set_sha256": sha256_of(QUESTIONS), "prompt_hash": prompt_hash(),
             "model": settings.generation_model, "effort": settings.generation_effort,
-            "k": settings.search_k, "min_score": settings.search_min_score, "n": len(records)}
+            "k": settings.search_k, "min_score": settings.search_min_score, "n": len(records),
+            "mode": args.mode, "classify_model": settings.classify_model, "classify_prompt_hash": classify_prompt_hash(),
+            # 생성 입력에 '오늘 날짜'가 들어가므로, 다른 날 잰 실행끼리는 마감 관련 답이 달라질 수 있다
+            "today": seoul_today().isoformat()}
     _, grading_path = write_run(records, meta, REPO_ROOT / "eval", name)
     print(f"{name}: recall@k {rate(r['recall_at_k'] for r in records)}, "
-          f"출처 일치 {rate(r['source_match'] for r in records)}, none {rate(r['none_handled'] for r in records)}")
+          f"출처 일치 {rate(r['source_match'] for r in records)}, none {rate(r['none_handled'] for r in records)}, "
+          f"의도 {rate(r['intent_ok'] for r in records)}, 도구 오류 {sum(r['tool_errors'] for r in records)}건")
     print(f"채점 양식: {grading_path}  →  채점 후 make eval-report")
 
 

@@ -4,7 +4,7 @@
 VENV ?= backend/.venv
 PY   ?= $(VENV)/bin/python
 
-.PHONY: setup lint lint-py lint-fe test generate check smoke db-up migrate ingest eval eval-freeze eval-report chunk-compare
+.PHONY: setup lint lint-py lint-fe test generate check smoke db-up migrate ingest eval eval-freeze eval-report chunk-compare users
 
 setup:
 	@if [ -x $(PY) ] && ! $(PY) -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))'; then \
@@ -43,10 +43,13 @@ migrate:
 ingest:
 	PYTHONPATH=backend $(PY) -m app.core.ingest --root data
 
+users:
+	PYTHONPATH=backend $(PY) -m app.core.users $(ARGS)
+
 # 평가 (설계 §6) — 실제 API 호출·비용 발생. LABEL 예: baseline, router-v1
 eval:
-	@if [ -z "$(LABEL)" ]; then echo "LABEL=이름 필요 (예: make eval LABEL=baseline)"; exit 1; fi
-	PYTHONPATH=backend $(PY) -m evaluation.run --label $(LABEL)
+	@if [ -z "$(LABEL)" ]; then echo "LABEL=이름 필요 (예: make eval LABEL=baseline, 라우터: make eval LABEL=router-v1 MODE=workflow)"; exit 1; fi
+	PYTHONPATH=backend $(PY) -m evaluation.run --label $(LABEL) $(if $(MODE),--mode $(MODE))
 
 eval-freeze:
 	PYTHONPATH=backend $(PY) -m evaluation.dataset --freeze

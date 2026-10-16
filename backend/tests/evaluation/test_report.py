@@ -87,3 +87,34 @@ def test_load_grading_non_utf8_gives_guidance(tmp_path):
     p = _grading(tmp_path, [{"id": "가나다", "key_points_ok": "O", "no_hallucination": "O"}], encoding="cp949")
     with pytest.raises(ValueError, match="UTF-8"):
         load_grading(p)
+
+
+def test_baseline_run_shows_dash_for_mode_and_intent_accuracy(tmp_path):
+    make_run(tmp_path, "2026-10-01-baseline-abc", RECORDS, {"label": "baseline", "prompt_hash": "p1"})
+    row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-01-baseline-abc"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert cells[2] == "—" and cells[6] == "—"  # 모드, 의도 정확도
+
+
+def test_workflow_run_reports_intent_accuracy(tmp_path):
+    records = [dict(r, intent_ok=ok) for r, ok in zip(RECORDS, (True, False, True), strict=True)]
+    make_run(tmp_path, "2026-10-14-router-v1-abc", records, {"label": "router-v1", "mode": "workflow", "prompt_hash": "p1"})
+    row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-14-router-v1-abc"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert cells[2] == "workflow" and cells[6] == "66.7%"
+
+
+def test_report_shows_tool_error_count_so_outages_are_visible(tmp_path):
+    records = [dict(r, tool_errors=n) for r, n in zip(RECORDS, (0, 2, 0), strict=True)]
+    make_run(tmp_path, "2026-10-14-router-v1-abc", records, {"label": "router-v1", "mode": "workflow", "today": "2026-10-14"})
+    row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-14-router-v1-abc"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert cells[-1] == "2" and cells[-2] == "2026-10-14"  # 측정일, 도구 오류 건수
+
+
+def test_report_shows_routing_loss_count(tmp_path):
+    records = [dict(r, intent_ok=ok, tool_errors=0) for r, ok in zip(RECORDS, (True, False, False), strict=True)]
+    make_run(tmp_path, "2026-10-14-router-v2-abc", records, {"label": "router-v2", "mode": "workflow"})
+    row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-14-router-v2-abc"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert cells[7] == "1"  # A02: 오분류 + 근거 못 찾음. N01은 none 문항이라 제외
