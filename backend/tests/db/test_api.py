@@ -161,3 +161,39 @@ def test_login_input_length_is_limited(api, session):
     client, _ = api
     assert client.post("/api/auth/login", json={"username": "k" * 65, "password": "p"}).status_code == 422
     assert client.post("/api/auth/login", json={"username": "kim", "password": "p" * 257}).status_code == 422
+
+
+def test_me_returns_username_and_sorted_courses(api, session):
+    client, _ = api
+    user = make_account(session, courses=frozenset({"DB", "AGENT"}))
+    res = client.get("/api/me", headers=auth(user.id))
+    assert res.status_code == 200
+    assert res.json() == {"username": "kim", "courses": ["AGENT", "DB"]}
+
+
+def test_me_guest_has_no_courses(api, session):
+    client, _ = api
+    user = make_account(session, courses=frozenset())
+    assert client.get("/api/me", headers=auth(user.id)).json()["courses"] == []
+
+
+def test_me_requires_token(api, session):
+    client, _ = api
+    assert client.get("/api/me").status_code == 401
+
+
+def test_me_does_not_consume_quota(api, session):
+    client, fake = api
+    user = make_account(session, quota=1)
+    client.get("/api/me", headers=auth(user.id))
+    assert used_on(session, user.id, seoul_today()) == 0 and fake.calls == []
+
+
+def test_me_reflects_enrollment_change_without_relogin(api, session):
+    # 화면 배지가 옛 수강 정보를 보여 주면 학생은 왜 전공 답이 안 나오는지 모른다 — 토큰이 아니라 DB에서 읽는다
+    client, _ = api
+    user = make_account(session, courses=frozenset({"AGENT"}))
+    headers = auth(user.id)
+    upsert_user(session, username="kim", password_hash=user.password_hash, courses=frozenset({"AWS"}), daily_quota=3)
+    session.commit()
+    assert client.get("/api/me", headers=headers).json()["courses"] == ["AWS"]

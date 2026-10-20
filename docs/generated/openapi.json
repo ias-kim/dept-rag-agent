@@ -90,6 +90,27 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "MeResponse": {
+        "properties": {
+          "courses": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Courses",
+            "type": "array"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "courses"
+        ],
+        "title": "MeResponse",
+        "type": "object"
+      },
       "SourceOut": {
         "properties": {
           "file": {
@@ -271,6 +292,30 @@
           }
         },
         "summary": "Login"
+      }
+    },
+    "/api/me": {
+      "get": {
+        "description": "화면 상단의 수강 과목 표시용. 과목은 current_user가 매 요청 DB에서 읽으므로 수강 변경이 바로 보인다.\n한도를 차감하지 않는다 — 화면을 열 때마다 부르는 요청이라 깎으면 질문도 안 했는데 한도가 줄어든다.",
+        "operationId": "me_api_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Me"
       }
     },
     "/health": {

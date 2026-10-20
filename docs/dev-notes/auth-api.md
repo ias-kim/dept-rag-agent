@@ -56,6 +56,7 @@ POST /api/ask {question}   Authorization: Bearer <token>
 | 비밀번호 옵션은 약어를 받지 않는다(`allow_abbrev=False`) | `--password`가 `--password-stdin`으로 해석돼 사용자가 비밀번호를 인자로 넘겼다고 착각한다 | `test_password_option_prefix_is_not_accepted_as_abbreviation` |
 | 비밀번호는 getpass·`--password-stdin`으로만 | argv에 넣으면 셸 기록·프로세스 목록에 남는다 | `test_password_cannot_be_passed_as_argument` |
 | `upsert_user`는 과목을 통째로 교체 | 빠진 과목의 `enrollments` 행이 남아 수강 취소 과목의 전공 자료가 계속 보인다 | `test_upsert_replaces_courses_and_password` |
+| `GET /api/me`는 과목을 DB에서 읽고 한도를 차감하지 않는다 | 화면 배지가 옛 수강 정보를 보여 학생이 왜 전공 답이 안 나오는지 모르고, 화면을 열 때마다 한도가 깎인다 | `test_me_reflects_enrollment_change_without_relogin`, `test_me_does_not_consume_quota` |
 | 한도 날짜는 서울 기준 | 서버(UTC)에서 한국 오전 9시에 한도가 초기화된다 | `seoul_today`, `test_seoul_date_rolls_over_at_15_utc` |
 
 외부 요인:
@@ -82,7 +83,7 @@ POST /api/ask {question}   Authorization: Bearer <token>
 
 | 파일 | 역할 |
 |---|---|
-| `backend/app/api/routes.py` | `/api/auth/login`, `/api/ask`, 요청·응답 모델 |
+| `backend/app/api/routes.py` | `/api/auth/login`, `/api/me`(화면 상단 수강 과목), `/api/ask`, 요청·응답 모델 |
 | `backend/app/api/deps.py` | 세션, `current_user`, `get_answer_fn`(공급사 장애 → `UpstreamError`), `get_login_throttle` |
 | `backend/app/api/throttle.py` | 로그인 시도 제한(메모리) |
 | `backend/app/core/security.py` | argon2 비밀번호, HS256 토큰 |
