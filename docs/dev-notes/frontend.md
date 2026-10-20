@@ -1,6 +1,6 @@
 # 화면(프론트엔드) — 5주차 로그인·질문 화면
 
-> 마지막 갱신: 2026-10-20 · 계획: [`docs/exec-plans/active/2026-10-20-m4a-frontend.md`](../exec-plans/active/2026-10-20-m4a-frontend.md) · 설계 §2·§4·§7
+> 마지막 갱신: 2026-10-20 · 계획: [`docs/exec-plans/done/2026-10-20-m4a-frontend.md`](../exec-plans/done/2026-10-20-m4a-frontend.md) · 설계 §2·§4·§7
 
 ## 1. 핵심 개념
 
@@ -51,13 +51,22 @@ App (토큰 있음?) ──▶ AskPage
 
 - **M4b(배포):** Caddy 뒤에서는 `request.client.host`가 모두 프록시 IP가 되어 IP별 로그인 제한(20회)이 반 전체에 걸린다 → `FORWARDED_ALLOW_IPS`를 Caddy 네트워크로 지정하고 `X-Forwarded-For` 기준 제한을 테스트한다.
 - 공급사 인증 오류(잘못된 API 키)는 지금 500이다 — 키를 고칠 때까지 모든 질문이 실패하고 한도도 돌려주지 않는다. 운영 전 `.env` 키 확인을 배포 점검표에 넣는다.
-
 - 본문 `[n]`을 눌러 출처로 이동하는 링크, 남은 한도 표시(API 없음), 대화 기록 — 범위 밖(M4a 계획).
 
 ## 5. 업데이트 시 주의점
 
 - `main.py`에 라우트를 추가할 때는 `add_frontend` 호출보다 **위에** 둔다. 아래에 두면 폴백이 먼저 받아 그 라우트는 영영 호출되지 않는다.
 - 화면을 고친 뒤 `uvicorn`으로 확인하려면 `npm run build`를 다시 해야 한다(개발 중에는 `npm run dev`가 편하다).
-
 - 서버에 공지 코드를 추가하면 `frontend/src/notices.js`에도 추가한다. 빠뜨리면 그 안내가 조용히 숨겨진다.
 - 프론트 테스트는 `make test`(= `test-py` + `test-fe`)에 포함된다. CI도 `make check`로 같이 돈다.
+
+## 파일 위치
+
+| 파일 | 역할 한 줄 |
+|---|---|
+| `frontend/src/api.js` | 서버와의 유일한 통로 — 토큰 보관, 오류 문구 변환 |
+| `frontend/src/notices.js` | 공지 코드 → 학생용 문구 |
+| `frontend/src/App.jsx` | 토큰 유무로 로그인/질문 화면 전환 |
+| `frontend/src/LoginPage.jsx`, `AskPage.jsx` | 화면 2종 |
+| `backend/app/api/frontend.py` | 빌드 결과 정적 서빙 + SPA 폴백 |
+| `docker/Dockerfile`, `.dockerignore`, `docker/docker-compose.yml` `app` | 화면+API 이미지와 로컬 실행 |

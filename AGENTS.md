@@ -10,11 +10,14 @@
 | 설치 | `make setup` | Python **3.12** 고정(uv 필요), 프론트 `npm ci` |
 | 린트 | `make lint` | ruff(backend) + oxlint(frontend) |
 | DB 기동 | `make db-up` | `make test`/`make check` 전에 필요 · 로컬 포트 5433 (CI는 서비스 컨테이너) |
-| 테스트 | `make test` | pytest, 구조 테스트 포함 · DB 필요 |
+| 테스트 | `make test` | `test-py`(pytest, 구조 테스트 포함 · DB 필요) + `test-fe`(Vitest) |
+| 화면 개발 | `cd frontend && npm run dev` | :5173, `/api`·`/health`는 :8000으로 프록시. 운영은 같은 출처라 CORS 없음 |
+| 화면 빌드 | `make build-fe` | `frontend/dist` → 있으면 FastAPI가 `/`에서 서빙 |
+| 컨테이너 | `make app-up` | 화면+API 이미지 빌드·기동, :8080. `.env`는 실행 시 `env_file`로만 |
 | 생성 | `make generate` | 파생물 재생성 → `docs/generated/` |
 | **게이트 1 전체** | `make check` | CI와 동일. 끝내기 전에 반드시 통과 |
 | 적재 | `make migrate && make ingest` | `data/academic/…`, `data/major/<과목코드>/…` PDF |
-| 스모크 | `make smoke` | 서버 실행 중 `/health` 확인 |
+| 스모크 | `make smoke` | `/health` 확인. 다른 주소는 `make smoke URL=http://localhost:8080` |
 | 계정 | `make users ARGS="add kim --courses AGENT,AWS"` | 비밀번호는 프롬프트로 입력(`--password-stdin` 가능). 과목 비우면 게스트(학사만). 서버에는 `.env`의 `JWT_SECRET`(32자 이상) 필요 |
 | 평가 | `make eval LABEL=baseline` → 채점 → `make eval-report` | 실제 API 비용 발생. 가이드 `eval/README.md` |
 | 라우터 평가 | `make eval LABEL=router-v1 MODE=workflow` | 기본 MODE는 baseline. 같은 커밋·같은 날의 `baseline-v2`와 비교 |
