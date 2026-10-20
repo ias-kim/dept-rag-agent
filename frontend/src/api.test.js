@@ -1,4 +1,4 @@
-import { ApiError, NETWORK_ERROR, TOKEN_KEY, ask, getToken, login } from './api'
+import { ApiError, NETWORK_ERROR, SERVER_ERROR, TOKEN_KEY, ask, getToken, login } from './api'
 
 function json(status, body) {
   return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -62,4 +62,11 @@ test('ask 401 clears token', async () => {
   const err = await ask('q').catch((e) => e)
   expect(err.status).toBe(401)
   expect(getToken()).toBeNull()
+})
+
+test('internal server error is not reported as a connection problem', async () => {
+  vi.spyOn(globalThis, 'fetch').mockReturnValue(Promise.resolve(new Response('Internal Server Error', { status: 500 })))
+  const err = await ask('q').catch((e) => e)
+  expect(err.status).toBe(500)
+  expect(err.message).toBe(SERVER_ERROR)
 })
