@@ -14,7 +14,7 @@ function AnswerText({ text }) {
   return (
     <p className="answer-text">
       {parts.map((part, i) => (i % 2 === 1
-        ? <span key={i} className="cite" aria-label={`출처 ${part}`}>{part}</span>
+        ? <span key={i} className="cite"><span className="sr-only">출처 </span>{part}</span>
         : part))}
     </p>
   )
@@ -91,8 +91,9 @@ export default function AskPage({ onLogout }) {
   }
 
   function handleKeyDown(e) {
-    // 한글 조합 중 Enter는 글자 확정용 — 여기서 보내면 마지막 글자가 빠진 채 전송된다
-    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
+    // 한글 조합 중 Enter는 글자 확정용 — 여기서 보내면 마지막 글자가 빠진 채 전송된다.
+    // Safari는 확정 Enter를 isComposing=false, keyCode=229로 보내므로 둘 다 본다
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing || e.keyCode === 229) return
     e.preventDefault()
     send()
   }
@@ -102,8 +103,9 @@ export default function AskPage({ onLogout }) {
     onLogout()
   }
 
-  // 수강 안내는 학사 자료로 답했을 때(출처 있음)만 의미가 있다. 출처가 없으면 본문이 이미 같은 안내라 두 번 보인다
-  const noticeCodes = result ? result.notices.filter((c) => c !== 'major_requires_enrollment' || result.sources.length > 0) : []
+  // 의도가 major면 본문 자체가 수강 안내(pipeline.py MAJOR_ONLY_TEXT)라 띠가 같은 말을 반복한다.
+  // both는 학사만 찾은 결과라 출처가 없어도(자료 없음 등) 띠가 있어야 전공 자료가 빠진 것을 안다
+  const noticeCodes = result ? result.notices.filter((c) => c !== 'major_requires_enrollment' || result.intent !== 'major') : []
   const notices = noticeLabels(noticeCodes)
 
   return (

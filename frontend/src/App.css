@@ -116,3 +116,9 @@ button.example:hover { background: var(--accent-weak); color: var(--accent); }
   .count { align-self: flex-start; }
   .card { padding: 22px 18px; }
 }
+
+/* 화면에는 안 보이고 스크린리더만 읽는 글자 (인용 배지의 "출처 ") */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}

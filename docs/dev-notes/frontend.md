@@ -15,11 +15,11 @@ LoginPage ─ login(username, password) ─▶ POST /api/auth/login ─▶ sessi
    │ onLoggedIn
 App (토큰 있음?) ──▶ AskPage
    │ me() ─▶ GET /api/me ─▶ {username, courses} → 상단 배지 ("AGENT · DB 수강" / "게스트 · 학사 자료만")
-   │   └ 401이면 바로 onLogout('expired') — 만료된 토큰으로 질문을 다 쓴 뒤에야 튕기지 않게. 그 외 실패는 배지만 숨김
+   │   └ 401이면 바로 onLogout('expired') — 만료된 토큰으로 질문을 다 쓴 뒤에야 튕기지 않게. 그 외 실패는 배지·아이디만 숨기고 질문은 계속
    │ ask(question) ─▶ POST /api/ask (Bearer) ─▶ {answer, sources[{file,page,section}], intent, notices[]}
-   │   ├─ answer      → 본문의 반각 [n]을 번호 배지(aria-label "출처 n")로 — 서버가 자료 원문의 [1]은 전각으로 바꿔 두므로 반각은 검증된 인용뿐
-   │   ├─ sources     → <ol> 출처 목록 (번호 = 본문 [n]), 비면 "출처" 제목째 생략
-   │   ├─ notices     → noticeLabels → 안내 띠(role=status), 비면 생략. 수강 안내는 출처가 있을 때만(없으면 본문과 같은 말)
+   │   ├─ answer      → 본문의 반각 [n]을 번호 배지로(숨김 글자 "출처 "를 넣어 스크린리더는 "출처 1"로 읽음) — 서버가 자료 원문의 [1]은 전각으로 바꿔 두므로 반각은 검증된 인용뿐
+   │   ├─ sources     → <ol> 출처 목록 (번호 = 본문 [n]), 비면 "이 답변의 근거 자료" 제목째 생략
+   │   ├─ notices     → noticeLabels → 안내 띠(role=status), 비면 생략. 수강 안내는 intent가 major일 때만 숨김(본문이 같은 말). both는 출처가 없어도 보여야 전공 자료가 빠진 것을 앎
    │   └─ intent      → 화면에 쓰지 않음 (baseline 모드에서는 null)
    └ 401 → onLogout('expired') → LoginPage에 만료 안내
 ```
@@ -40,7 +40,7 @@ App (토큰 있음?) ──▶ AskPage
 | JSON이 아닌 오류 본문(프록시 502 HTML)에서도 깨지지 않는다 | `JSON.parse` 예외로 화면 전체가 멈춘다 | `api.js` 본문 파싱 실패 허용, `api.test.js::non-json error body…` |
 | 출처 목록 순서 = 서버 `sources` 순서 | 본문 `[2]`가 다른 파일을 가리켜 학생이 엉뚱한 쪽을 근거로 믿는다 | `AskPage.jsx` `SourceList`(정렬·중복 제거 금지), `answer.py` `verify_citations` |
 | 요청 중에는 다시 보내지 않는다 | 연타할 때마다 일일 한도가 깎인다 | `AskPage.jsx` `pending` 조기 반환 + 버튼 비활성, `AskPage.test.jsx::disables submit while waiting` |
-| `section: null`·빈 `sources`가 깨지지 않는다 | 화면에 `null` 글자나 빈 "출처" 제목이 보인다 | `AskPage.test.jsx::omits null section`, `renders answer without sources` |
+| `section: null`·빈 `sources`가 깨지지 않는다 | 화면에 `null` 글자나 빈 "이 답변의 근거 자료" 제목이 보인다 | `AskPage.test.jsx::omits null section`, `renders answer without sources` |
 | SPA 폴백은 `/api/*`·`/health`를 가리지 않고, 없는 API는 메서드와 무관하게 JSON 404 | API 오타에 `index.html`(200)이 돌아가 화면이 JSON 파싱 오류로 깨지거나, POST 오타가 405 "Method Not Allowed"(영어)로 학생 화면에 뜬다 | `add_frontend`를 라우트 등록 뒤 호출(`main.py`), `/api`·`/api/{rest}` 전 메서드(HEAD·OPTIONS 포함) catch-all, `test_unknown_api_path_is_json_404`, `…_for_every_method` |
 | 폴백은 dist 밖 파일을 내보내지 않는다 | `/../.env` 같은 경로로 서버 비밀값이 새어 나간다 | `frontend.py` `resolve()` + `is_relative_to(dist)`, `test_path_traversal_does_not_escape_dist` |
 | 정적 라우트는 OpenAPI에 나오지 않는다 | `docs/generated/openapi.json` 스냅샷이 바뀌어 계약 문서에 화면 경로가 섞인다 | `include_in_schema=False`, `test_openapi_has_no_frontend_routes` |
@@ -49,7 +49,8 @@ App (토큰 있음?) ──▶ AskPage
 | uvicorn 워커는 1개 | 로그인 시도 제한이 프로세스 메모리라 워커 수만큼 제한이 풀린다 | Dockerfile `CMD` `--workers 1` (테스트 없음 — 바꿀 때 `throttle.py`를 DB·Redis로 옮겨야 함) |
 | 컨테이너 안 `DATABASE_URL`은 `db:5432` | `.env`의 `localhost:5433`이 그대로 쓰이면 마이그레이션 단계에서 연결 실패로 컨테이너가 재시작을 반복한다 | `docker-compose.yml` `app.environment` |
 | 500(처리 안 된 예외)은 "서버 오류", 502~504만 "연결할 수 없음" | 공급사 키 오류 같은 서버 문제를 학생이 자기 인터넷 문제로 오해한다 | `api.js` `errorMessage`, `api.test.js::internal server error…` |
-| Enter는 보내기, Shift+Enter는 줄바꿈, 한글 조합 중 Enter는 무시 | 조합 중 Enter로 보내면 마지막 글자가 빠진 질문이 나가고 한도가 깎인다 | `AskPage.jsx` `handleKeyDown`(`isComposing`), `AskPage.test.jsx::Enter sends, Shift+Enter adds a line` |
+| Enter는 보내기, Shift+Enter는 줄바꿈, 한글 조합 중 Enter는 무시 | 조합 중 Enter로 보내면 마지막 글자가 빠진 질문이 나가고 한도가 깎인다 | `AskPage.jsx` `handleKeyDown`(`isComposing` + Safari `keyCode 229`), `AskPage.test.jsx::Enter during Hangul composition does not send`, `composition-confirm Enter with keyCode 229 does not send` |
+| 수강 안내 띠는 intent=major일 때만 숨긴다 | 숨김 범위가 넓으면 게스트의 both 질문이 자료를 못 찾았을 때 전공 자료가 빠진 사실을 알 수 없다 | `AskPage.test.jsx::enrollment notice stays when a both-intent answer found nothing`, `…is not repeated when the answer itself says so` |
 | `App`의 `onLogout`은 `useCallback`으로 고정 | `AskPage`의 `/api/me` effect가 렌더마다 다시 돈다 | `App.jsx` `handleLogout` |
 | 글꼴은 npm `pretendard`로 번들 | CDN이 막힌 망에서 글꼴이 바뀌어 줄 간격·폭이 달라진다 | `index.css` `@import 'pretendard/…'` |
 | 공지 코드 원문은 화면에 나가지 않는다 | `tool_error:search_major` 같은 내부 이름이 학생에게 보인다 | `notices.js` 기본값 숨김, `notices.test.js` |
