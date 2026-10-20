@@ -1,37 +1,57 @@
-:root {
-  --text: #1f2328;
-  --muted: #59636e;
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --border: #d8dee4;
-  --accent: #1f5fbf;
-  --accent-text: #ffffff;
-  --error: #b42318;
-  --error-bg: #fef3f2;
-  --notice-bg: #fff8e6;
-  --notice-border: #e8c260;
+/* 글꼴은 npm 패키지에서 번들 — 외부 CDN이 막힌 학교망에서도 같은 모양으로 보인다 */
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 
-  font: 16px/1.6 system-ui, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --text: #191f28;
+  --sub: #4e5968;
+  --muted: #8b95a1;
+  --line: #e5e8eb;
+  --accent: #3182f6;
+  --accent-strong: #1b64da;
+  --accent-weak: #e8f3ff;
+  --accent-text: #ffffff;
+  --error: #d22030;
+  --error-bg: #fff1f2;
+  --notice-bg: #fff8e6;
+  --notice-text: #7a5200;
+  --pdf-bg: #fff0f0;
+  --pdf-text: #e5484d;
+  --skeleton: #eef0f3;
+
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
   color: var(--text);
   background: var(--bg);
   color-scheme: light dark;
+  -webkit-font-smoothing: antialiased;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #e6edf3;
-    --muted: #9198a1;
-    --bg: #0d1117;
-    --surface: #161b22;
-    --border: #30363d;
+    --bg: #101317;
+    --surface: #1a1e24;
+    --text: #e8ebee;
+    --sub: #b0b8c1;
+    --muted: #7d8590;
+    --line: #2c323a;
     --accent: #4c8dff;
+    --accent-strong: #6ea3ff;
+    --accent-weak: #1c2b44;
     --accent-text: #0d1117;
     --error: #ff7b72;
     --error-bg: #2d1414;
     --notice-bg: #2b2411;
-    --notice-border: #8a6d1f;
+    --notice-text: #e8c260;
+    --pdf-bg: #3a1e20;
+    --pdf-text: #ff8a8f;
+    --skeleton: #262b32;
   }
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); }
+/* 한국어는 어절 단위로 줄을 바꿔야 단어 중간이 잘려 읽기 불편해지지 않는다 */
+body { margin: 0; background: var(--bg); word-break: keep-all; overflow-wrap: anywhere; }

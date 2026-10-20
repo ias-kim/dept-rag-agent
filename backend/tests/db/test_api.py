@@ -164,7 +164,7 @@ def test_login_input_length_is_limited(api, session):
 
 
 def test_me_returns_username_and_sorted_courses(api, session):
-    client, fake = api
+    client, _ = api
     user = make_account(session, courses=frozenset({"DB", "AGENT"}))
     res = client.get("/api/me", headers=auth(user.id))
     assert res.status_code == 200

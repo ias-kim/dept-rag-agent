@@ -1,4 +1,4 @@
-import { ApiError, NETWORK_ERROR, SERVER_ERROR, TOKEN_KEY, ask, getToken, login } from './api'
+import { ApiError, NETWORK_ERROR, SERVER_ERROR, TOKEN_KEY, ask, getToken, login, me } from './api'
 
 function json(status, body) {
   return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -69,4 +69,16 @@ test('internal server error is not reported as a connection problem', async () =
   const err = await ask('q').catch((e) => e)
   expect(err.status).toBe(500)
   expect(err.message).toBe(SERVER_ERROR)
+})
+
+test('me sends bearer GET and returns body', async () => {
+  sessionStorage.setItem(TOKEN_KEY, 't1')
+  const body = { username: 'kim', courses: ['AGENT', 'DB'] }
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(json(200, body))
+  await expect(me()).resolves.toEqual(body)
+  const [url, init] = fetchMock.mock.calls[0]
+  expect(url).toBe('/api/me')
+  expect(init.method).toBe('GET')
+  expect(init.body).toBeUndefined()
+  expect(init.headers.Authorization).toBe('Bearer t1')
 })

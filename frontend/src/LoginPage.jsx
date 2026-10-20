@@ -24,24 +24,26 @@ export default function LoginPage({ onLoggedIn, notice }) {
   const canSubmit = username.trim() !== '' && password !== '' && !pending
 
   return (
-    <main className="page narrow">
-      <p className="brand">학과 지식 질의응답</p>
-      <h1>로그인</h1>
-      <p className="hint">계정은 튜터에게 받습니다 — 회원가입은 없습니다.</p>
-      {notice && <p className="notice">{notice}</p>}
-      <form className="stack" onSubmit={handleSubmit}>
-        <label>
-          아이디
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
-        </label>
-        <label>
-          비밀번호
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password" />
-        </label>
-        {error && <p role="alert" className="error">{error}</p>}
-        <button type="submit" disabled={!canSubmit}>{pending ? '확인 중…' : '로그인'}</button>
-      </form>
+    <main className="login">
+      <div className="login-card">
+        <span className="brand">🎓 학과 지식 질의응답</span>
+        <h1>로그인</h1>
+        <p className="lead">학사 공지와 강의자료를 근거와 함께 찾아 드립니다. 계정은 튜터에게 받습니다.</p>
+        {notice && <p className="notice">{notice}</p>}
+        <form className="stack" onSubmit={handleSubmit}>
+          <label>
+            아이디
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+          </label>
+          <label>
+            비밀번호
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password" />
+          </label>
+          {error && <p role="alert" className="error">{error}</p>}
+          <button type="submit" disabled={!canSubmit}>{pending ? '확인 중…' : '로그인'}</button>
+        </form>
+      </div>
     </main>
   )
 }

@@ -9,13 +9,17 @@
 ## 2. 데이터 흐름
 
 ```
+(2026-10-20 B안 리디자인: 검색형 — 큰 제목·설명·검색창·예시 질문, 답변 카드, "이 답변의 근거 자료" 목록, 상단 수강 과목 배지)
+
 LoginPage ─ login(username, password) ─▶ POST /api/auth/login ─▶ sessionStorage[dept-rag-token]
    │ onLoggedIn
 App (토큰 있음?) ──▶ AskPage
+   │ me() ─▶ GET /api/me ─▶ {username, courses} → 상단 배지 ("AGENT · DB 수강" / "게스트 · 학사 자료만")
+   │   └ 401이면 바로 onLogout('expired') — 만료된 토큰으로 질문을 다 쓴 뒤에야 튕기지 않게. 그 외 실패는 배지만 숨김
    │ ask(question) ─▶ POST /api/ask (Bearer) ─▶ {answer, sources[{file,page,section}], intent, notices[]}
-   │   ├─ answer      → 본문 그대로 ([1]·[2] 번호 포함)
+   │   ├─ answer      → 본문의 반각 [n]을 번호 배지(aria-label "출처 n")로 — 서버가 자료 원문의 [1]은 전각으로 바꿔 두므로 반각은 검증된 인용뿐
    │   ├─ sources     → <ol> 출처 목록 (번호 = 본문 [n]), 비면 "출처" 제목째 생략
-   │   ├─ notices     → noticeLabels → 안내 목록(role=status), 비면 생략
+   │   ├─ notices     → noticeLabels → 안내 띠(role=status), 비면 생략. 수강 안내는 출처가 있을 때만(없으면 본문과 같은 말)
    │   └─ intent      → 화면에 쓰지 않음 (baseline 모드에서는 null)
    └ 401 → onLogout('expired') → LoginPage에 만료 안내
 ```
@@ -45,6 +49,9 @@ App (토큰 있음?) ──▶ AskPage
 | uvicorn 워커는 1개 | 로그인 시도 제한이 프로세스 메모리라 워커 수만큼 제한이 풀린다 | Dockerfile `CMD` `--workers 1` (테스트 없음 — 바꿀 때 `throttle.py`를 DB·Redis로 옮겨야 함) |
 | 컨테이너 안 `DATABASE_URL`은 `db:5432` | `.env`의 `localhost:5433`이 그대로 쓰이면 마이그레이션 단계에서 연결 실패로 컨테이너가 재시작을 반복한다 | `docker-compose.yml` `app.environment` |
 | 500(처리 안 된 예외)은 "서버 오류", 502~504만 "연결할 수 없음" | 공급사 키 오류 같은 서버 문제를 학생이 자기 인터넷 문제로 오해한다 | `api.js` `errorMessage`, `api.test.js::internal server error…` |
+| Enter는 보내기, Shift+Enter는 줄바꿈, 한글 조합 중 Enter는 무시 | 조합 중 Enter로 보내면 마지막 글자가 빠진 질문이 나가고 한도가 깎인다 | `AskPage.jsx` `handleKeyDown`(`isComposing`), `AskPage.test.jsx::Enter sends, Shift+Enter adds a line` |
+| `App`의 `onLogout`은 `useCallback`으로 고정 | `AskPage`의 `/api/me` effect가 렌더마다 다시 돈다 | `App.jsx` `handleLogout` |
+| 글꼴은 npm `pretendard`로 번들 | CDN이 막힌 망에서 글꼴이 바뀌어 줄 간격·폭이 달라진다 | `index.css` `@import 'pretendard/…'` |
 | 공지 코드 원문은 화면에 나가지 않는다 | `tool_error:search_major` 같은 내부 이름이 학생에게 보인다 | `notices.js` 기본값 숨김, `notices.test.js` |
 
 ## 4. 다음 수정
@@ -67,6 +74,7 @@ App (토큰 있음?) ──▶ AskPage
 | `frontend/src/api.js` | 서버와의 유일한 통로 — 토큰 보관, 오류 문구 변환 |
 | `frontend/src/notices.js` | 공지 코드 → 학생용 문구 |
 | `frontend/src/App.jsx` | 토큰 유무로 로그인/질문 화면 전환 |
+| `frontend/src/questions.js` | 질문 최대 길이(서버와 같은 값), 예시 질문 |
 | `frontend/src/LoginPage.jsx`, `AskPage.jsx` | 화면 2종 |
 | `backend/app/api/frontend.py` | 빌드 결과 정적 서빙 + SPA 폴백 |
 | `docker/Dockerfile`, `.dockerignore`, `docker/docker-compose.yml` `app` | 화면+API 이미지와 로컬 실행 |

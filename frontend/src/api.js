@@ -28,12 +28,13 @@ function errorMessage(status, body) {
   return status >= 500 && !GATEWAY_STATUSES.has(status) ? SERVER_ERROR : NETWORK_ERROR
 }
 
-async function request(path, payload, { auth = false } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
+async function request(method, path, payload, { auth = false } = {}) {
+  const headers = {}
+  if (payload !== undefined) headers['Content-Type'] = 'application/json'
   if (auth) headers.Authorization = `Bearer ${getToken()}`
   let res
   try {
-    res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(payload) })
+    res = await fetch(path, { method, headers, body: payload === undefined ? undefined : JSON.stringify(payload) })
   } catch {
     throw new ApiError(0, NETWORK_ERROR)
   }
@@ -52,10 +53,15 @@ async function request(path, payload, { auth = false } = {}) {
 }
 
 export async function login(username, password) {
-  const { access_token } = await request('/api/auth/login', { username, password })
+  const { access_token } = await request('POST', '/api/auth/login', { username, password })
   sessionStorage.setItem(TOKEN_KEY, access_token)
 }
 
 export function ask(question) {
-  return request('/api/ask', { question }, { auth: true })
+  return request('POST', '/api/ask', { question }, { auth: true })
+}
+
+// 상단 수강 과목 표시용. 한도를 쓰지 않으므로 화면을 열 때마다 불러도 된다
+export function me() {
+  return request('GET', '/api/me', undefined, { auth: true })
 }

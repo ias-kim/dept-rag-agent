@@ -1,47 +1,118 @@
-.page { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
-.page.narrow { max-width: 400px; padding-top: 12vh; }
-
-.brand { margin: 0; color: var(--muted); font-size: 14px; font-weight: 600; }
-h1 { margin: 4px 0 8px; font-size: 26px; }
-h2 { margin: 24px 0 8px; font-size: 16px; }
-.hint { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
-
-.stack { display: flex; flex-direction: column; gap: 12px; }
-label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 600; }
-input, textarea {
-  font: inherit; color: var(--text); background: var(--surface);
-  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
-}
-textarea { resize: vertical; min-height: 96px; }
-input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-
 button {
-  font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 10px 16px;
-  background: var(--accent); color: var(--accent-text); cursor: pointer;
+  font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 12px 20px;
+  background: var(--accent); color: var(--accent-text); cursor: pointer; white-space: nowrap;
 }
+button:hover:not(:disabled) { background: var(--accent-strong); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
-button.secondary { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+button.ghost {
+  background: transparent; color: var(--sub); border: 1px solid var(--line);
+  font-weight: 500; font-size: 14px; padding: 6px 12px; border-radius: 8px;
+}
+button.ghost:hover { background: var(--surface); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.error { margin: 0; padding: 8px 12px; border-radius: 8px; color: var(--error); background: var(--error-bg); }
-.notice {
-  margin: 0 0 16px; padding: 8px 12px; border-radius: 8px;
-  background: var(--notice-bg); border: 1px solid var(--notice-border);
+/* 상단 바 */
+.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 14px 24px; }
+.brand { font-weight: 800; font-size: 17px; white-space: nowrap; }
+.who { display: flex; align-items: center; gap: 10px; margin-left: auto; font-size: 14px; color: var(--sub); }
+.badge {
+  font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  background: var(--accent-weak); color: var(--accent);
 }
 
-.topbar { display: flex; align-items: center; justify-content: space-between; }
-.topbar button { padding: 6px 12px; font-size: 14px; }
-.row { display: flex; align-items: center; justify-content: space-between; }
-.count { color: var(--muted); font-size: 13px; }
-.spaced { margin-top: 16px; }
+/* 본문 */
+.page { max-width: 780px; margin: 0 auto; padding: 12px 24px 64px; }
+h1 { font-size: 30px; line-height: 1.35; letter-spacing: -0.03em; margin: 28px 0 6px; }
+.lead { color: var(--sub); margin: 0 0 22px; }
 
-.answer {
-  margin-top: 24px; padding: 20px; border-radius: 12px;
-  background: var(--surface); border: 1px solid var(--border);
+.search {
+  display: flex; gap: 10px; align-items: flex-end;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px;
+  padding: 10px 10px 10px 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
-.answer-text { margin: 0; white-space: pre-wrap; }
+.search:focus-within { border-color: var(--accent); }
+.search textarea {
+  flex: 1; font: inherit; font-size: 17px; color: var(--text); background: transparent;
+  border: 0; outline: none; resize: none; padding: 10px 0; field-sizing: content; max-height: 200px;
+}
+.meta { display: flex; flex-direction: column; gap: 10px; margin: 10px 4px 24px; font-size: 13px; color: var(--muted); }
+.examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+button.example {
+  font-weight: 500; font-size: 13px; padding: 4px 12px; border-radius: 999px;
+  background: var(--surface); color: var(--sub); border: 1px solid var(--line);
+}
+button.example:hover { background: var(--accent-weak); color: var(--accent); }
+.count { order: -1; align-self: flex-end; white-space: nowrap; }
+
+/* 답변 카드 */
+.card { background: var(--surface); border-radius: 20px; padding: 28px 30px; }
+.label { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--accent); }
+.answer-text { margin: 0; font-size: 16.5px; white-space: pre-wrap; }
+.cite {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin: 0 2px;
+  font-size: 11px; font-weight: 700; line-height: 1; vertical-align: 2px;
+  color: var(--accent); background: var(--accent-weak); border-radius: 9px;
+}
 .notices {
-  list-style: none; margin: 0 0 16px; padding: 8px 12px; border-radius: 8px;
-  background: var(--notice-bg); border: 1px solid var(--notice-border); font-size: 14px;
+  list-style: none; margin: 0 0 16px; padding: 10px 14px; border-radius: 10px;
+  background: var(--notice-bg); color: var(--notice-text); font-size: 14px;
 }
-.sources { margin: 0; padding-left: 24px; color: var(--muted); font-size: 14px; }
-.sources span { color: var(--text); font-weight: 600; }
+.error { margin: 0 0 16px; padding: 10px 14px; border-radius: 10px; color: var(--error); background: var(--error-bg); }
+
+/* 근거 자료 */
+.sources { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+.sources h2 { margin: 0 0 8px; font-size: 14px; color: var(--sub); }
+.sources ol { list-style: none; margin: 0; padding: 0; }
+.source { display: flex; align-items: center; gap: 14px; padding: 12px 0; }
+.source + .source { border-top: 1px dashed var(--line); }
+.source-num {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; background: var(--accent-weak); color: var(--accent);
+}
+.pdf {
+  flex: none; width: 32px; height: 38px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; background: var(--pdf-bg); color: var(--pdf-text);
+}
+.source-text { min-width: 0; line-height: 1.45; }
+.source-text b { display: block; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-text small { display: block; font-size: 13px; color: var(--muted); }
+.source-page {
+  flex: none; margin-left: auto; font-size: 13px; font-weight: 700; color: var(--sub);
+  background: var(--bg); border-radius: 8px; padding: 4px 10px;
+}
+
+/* 답을 기다리는 동안 */
+.skeleton { display: flex; flex-direction: column; gap: 12px; }
+.skeleton span { height: 14px; border-radius: 7px; background: var(--skeleton); animation: pulse 1.2s ease-in-out infinite; }
+.skeleton span.short { width: 60%; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .skeleton span { animation: none; } }
+
+/* 로그인 */
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.login-card { width: 100%; max-width: 400px; background: var(--surface); border-radius: 20px; padding: 36px 32px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06); }
+.login-card .brand { display: block; margin-bottom: 18px; }
+.login-card h1 { font-size: 24px; margin: 0 0 6px; }
+.login-card .lead { font-size: 14px; margin-bottom: 24px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.stack label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: var(--sub); }
+.stack input {
+  font: inherit; color: var(--text); background: var(--bg); border: 1.5px solid transparent;
+  border-radius: 12px; padding: 12px 14px;
+}
+.stack input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+.stack button { margin-top: 6px; padding: 14px; }
+.notice { margin: 0 0 18px; padding: 10px 14px; border-radius: 10px; background: var(--notice-bg); color: var(--notice-text); font-size: 14px; }
+.login-card .error { margin: 0; }
+
+/* 휴대폰 폭 */
+@media (max-width: 600px) {
+  .topbar { padding: 12px 16px; }
+  .username { display: none; }
+  .page { padding: 4px 16px 48px; }
+  h1 { font-size: 24px; margin-top: 16px; }
+  .search { flex-direction: column; align-items: stretch; padding: 10px 10px 10px 16px; }
+  .count { align-self: flex-start; }
+  .card { padding: 22px 18px; }
+}
