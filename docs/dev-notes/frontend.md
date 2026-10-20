@@ -37,7 +37,7 @@ App (토큰 있음?) ──▶ AskPage
 | 출처 목록 순서 = 서버 `sources` 순서 | 본문 `[2]`가 다른 파일을 가리켜 학생이 엉뚱한 쪽을 근거로 믿는다 | `AskPage.jsx` `SourceList`(정렬·중복 제거 금지), `answer.py` `verify_citations` |
 | 요청 중에는 다시 보내지 않는다 | 연타할 때마다 일일 한도가 깎인다 | `AskPage.jsx` `pending` 조기 반환 + 버튼 비활성, `AskPage.test.jsx::disables submit while waiting` |
 | `section: null`·빈 `sources`가 깨지지 않는다 | 화면에 `null` 글자나 빈 "출처" 제목이 보인다 | `AskPage.test.jsx::omits null section`, `renders answer without sources` |
-| SPA 폴백은 `/api/*`·`/health`를 가리지 않는다 | API 오타에 `index.html`(200)이 돌아가 화면이 JSON 파싱 오류로 깨지고, 원인을 찾기 어렵다 | `add_frontend`를 라우트 등록 뒤 호출(`main.py`), `api/` 접두사 JSON 404, `test_frontend_static.py::test_unknown_api_path_is_json_404` |
+| SPA 폴백은 `/api/*`·`/health`를 가리지 않고, 없는 API는 메서드와 무관하게 JSON 404 | API 오타에 `index.html`(200)이 돌아가 화면이 JSON 파싱 오류로 깨지거나, POST 오타가 405 "Method Not Allowed"(영어)로 학생 화면에 뜬다 | `add_frontend`를 라우트 등록 뒤 호출(`main.py`), `/api/{rest}` 전 메서드 catch-all, `test_unknown_api_path_is_json_404`, `…_for_every_method` |
 | 폴백은 dist 밖 파일을 내보내지 않는다 | `/../.env` 같은 경로로 서버 비밀값이 새어 나간다 | `frontend.py` `resolve()` + `is_relative_to(dist)`, `test_path_traversal_does_not_escape_dist` |
 | 정적 라우트는 OpenAPI에 나오지 않는다 | `docs/generated/openapi.json` 스냅샷이 바뀌어 계약 문서에 화면 경로가 섞인다 | `include_in_schema=False`, `test_openapi_has_no_frontend_routes` |
 | `frontend_dist_dir` 기본값은 실행 위치와 무관한 절대 경로 | `backend/`에서 띄운 uvicorn이 상대 경로를 못 찾아 화면 없이 API만 뜬다(오류 없음) | `config.py` `REPO_ROOT`, `test_default_dist_dir_is_repo_frontend_regardless_of_cwd` |

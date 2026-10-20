@@ -68,6 +68,14 @@ def test_unknown_api_path_is_json_404(client):
     assert r.json() == {"detail": "Not Found"}
 
 
+@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+def test_unknown_api_path_is_json_404_for_every_method(client, method):
+    # 화면은 POST만 쓴다 — GET 전용 폴백이 경로만 맞으면 405 "Method Not Allowed"가 학생 화면에 그대로 뜬다
+    r = getattr(client, method)("/api/asks")
+    assert r.status_code == 404
+    assert r.json() == {"detail": "Not Found"}
+
+
 def test_api_and_health_not_shadowed(client):
     r = client.post("/api/ask", json={"question": "q"})
     assert r.status_code == 401
