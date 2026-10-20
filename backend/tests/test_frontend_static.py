@@ -76,6 +76,16 @@ def test_unknown_api_path_is_json_404_for_every_method(client, method):
     assert r.json() == {"detail": "Not Found"}
 
 
+@pytest.mark.parametrize(("method", "path"), [
+    ("post", "/api"), ("get", "/api"), ("head", "/api/asks"), ("options", "/api/asks"), ("post", "/api/"),
+])
+def test_unknown_api_is_json_404_for_bare_prefix_and_head_options(client, method, path):
+    # 게이트 3 경고: 메서드 목록 밖(HEAD·OPTIONS)과 슬래시 없는 /api가 405로 새던 경로
+    r = client.request(method.upper(), path)
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/json")
+
+
 def test_api_and_health_not_shadowed(client):
     r = client.post("/api/ask", json={"question": "q"})
     assert r.status_code == 401

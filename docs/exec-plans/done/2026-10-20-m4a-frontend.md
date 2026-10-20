@@ -332,3 +332,4 @@ def test_env_example_is_not_required_in_image(): ...  # Dockerfile에 'COPY .env
 - 2026-10-20: 처리되지 않은 500은 "서버 오류", 502~504만 "연결할 수 없음" — 컨테이너 QA에서 공급사 키 오류(500)가 연결 실패로 보여 원인을 오해하게 했다.
 - 2026-10-20: **확인 필요(튜터)** — 저장소 `.env`의 `ANTHROPIC_API_KEY`가 공급사에서 401(invalid x-api-key)로 거절됨. 로컬 dev 서버는 셸 프로필의 다른 키로 동작해 드러나지 않았다. `JWT_SECRET`도 `.env`에 없어 로그인이 503. M4b 배포 전 둘 다 설정해야 한다.
 - 2026-10-20: 브라우저 QA(내장 브라우저) — dev(:5173)와 컨테이너(:8080)에서 로그인 오류·성공, 출처 번호 일치, 출처 없는 응답, 게스트 전공 질문 안내, 위조 토큰 만료 처리 확인.
+- 2026-10-20: 게이트 3(Codex) 경고 반영 — HEAD·OPTIONS와 슬래시 없는 `/api`도 JSON 404 (`test_unknown_api_is_json_404_for_bare_prefix_and_head_options`).
