@@ -4,7 +4,7 @@
 VENV ?= backend/.venv
 PY   ?= $(VENV)/bin/python
 
-.PHONY: setup lint lint-py lint-fe test generate check smoke db-up migrate ingest eval eval-freeze eval-report chunk-compare users
+.PHONY: setup lint lint-py lint-fe test test-py test-fe generate check smoke db-up migrate ingest eval eval-freeze eval-report chunk-compare users
 
 setup:
 	@if [ -x $(PY) ] && ! $(PY) -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))'; then \
@@ -21,8 +21,13 @@ lint-py:
 lint-fe:
 	cd frontend && npm run --silent lint
 
-test:
+test: test-py test-fe
+
+test-py:
 	$(PY) -m pytest -q backend
+
+test-fe:
+	cd frontend && npm run --silent test
 
 generate:
 	$(PY) backend/scripts/gen_openapi.py

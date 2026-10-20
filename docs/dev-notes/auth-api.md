@@ -1,6 +1,6 @@
 # 로그인·일일 한도·질문 API — M3b
 
-> 마지막 갱신: 2026-10-13 · 계획: [`docs/exec-plans/active/2026-09-30-m3b-auth-api.md`](../exec-plans/active/2026-09-30-m3b-auth-api.md) · 설계 §4
+> 마지막 갱신: 2026-10-13 · 계획: [`docs/exec-plans/done/2026-09-30-m3b-auth-api.md`](../exec-plans/done/2026-09-30-m3b-auth-api.md) · 설계 §4
 
 ## 1. 핵심 개념
 
