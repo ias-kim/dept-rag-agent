@@ -6,5 +6,6 @@ import { afterEach, vi } from 'vitest'
 afterEach(() => {
   cleanup()
   sessionStorage.clear()
+  vi.clearAllMocks() // vi.mock 모듈의 호출 기록 — restoreAllMocks는 spyOn만 되돌린다
   vi.restoreAllMocks()
 })

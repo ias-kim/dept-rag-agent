@@ -8,7 +8,19 @@
 
 ## 2. 데이터 흐름
 
-(Task 2~4에서 채움)
+```
+LoginPage ─ login(username, password) ─▶ POST /api/auth/login ─▶ sessionStorage[dept-rag-token]
+   │ onLoggedIn
+App (토큰 있음?) ──▶ AskPage
+   │ ask(question) ─▶ POST /api/ask (Bearer) ─▶ {answer, sources[{file,page,section}], intent, notices[]}
+   │   ├─ answer      → 본문 그대로 ([1]·[2] 번호 포함)
+   │   ├─ sources     → <ol> 출처 목록 (번호 = 본문 [n]), 비면 "출처" 제목째 생략
+   │   ├─ notices     → noticeLabels → 안내 목록(role=status), 비면 생략
+   │   └─ intent      → 화면에 쓰지 않음 (baseline 모드에서는 null)
+   └ 401 → onLogout('expired') → LoginPage에 만료 안내
+```
+
+**개발 실행:** 백엔드 `cd backend && .venv/bin/uvicorn app.main:app --reload`(:8000) + `cd frontend && npm run dev`(:5173). Vite 프록시가 `/api`·`/health`를 :8000으로 넘긴다.
 
 ## 3. 불변 조건과 실패 모드
 
@@ -18,9 +30,14 @@
 | 오류 문구는 서버 `detail` 문자열 그대로 | 429를 화면이 "한도 소진"으로 단정하면 로그인 시도 과다 상황에 틀린 안내가 나간다 | `api.js` `errorMessage`, `api.test.js::string detail becomes message` |
 | 401이면 토큰을 지운다 | 12시간 지나 만료된 토큰을 계속 보내며 같은 오류만 반복한다 | `api.js` `request`, `api.test.js::ask 401 clears token` |
 | JSON이 아닌 오류 본문(프록시 502 HTML)에서도 깨지지 않는다 | `JSON.parse` 예외로 화면 전체가 멈춘다 | `api.js` 본문 파싱 실패 허용, `api.test.js::non-json error body…` |
+| 출처 목록 순서 = 서버 `sources` 순서 | 본문 `[2]`가 다른 파일을 가리켜 학생이 엉뚱한 쪽을 근거로 믿는다 | `AskPage.jsx` `SourceList`(정렬·중복 제거 금지), `answer.py` `verify_citations` |
+| 요청 중에는 다시 보내지 않는다 | 연타할 때마다 일일 한도가 깎인다 | `AskPage.jsx` `pending` 조기 반환 + 버튼 비활성, `AskPage.test.jsx::disables submit while waiting` |
+| `section: null`·빈 `sources`가 깨지지 않는다 | 화면에 `null` 글자나 빈 "출처" 제목이 보인다 | `AskPage.test.jsx::omits null section`, `renders answer without sources` |
 | 공지 코드 원문은 화면에 나가지 않는다 | `tool_error:search_major` 같은 내부 이름이 학생에게 보인다 | `notices.js` 기본값 숨김, `notices.test.js` |
 
 ## 4. 다음 수정
+
+- 본문 `[n]`을 눌러 출처로 이동하는 링크, 남은 한도 표시(API 없음), 대화 기록 — 범위 밖(M4a 계획).
 
 ## 5. 업데이트 시 주의점
 
