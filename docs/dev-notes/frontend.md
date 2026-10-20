@@ -22,6 +22,8 @@ App (토큰 있음?) ──▶ AskPage
 
 **운영(같은 출처):** `npm run build` → `frontend/dist`. `app/main.py`가 dist가 있으면 `add_frontend`로 `/assets/*`(정적)와 `/{path}`(SPA 폴백)를 **모든 라우트 뒤에** 붙인다. `/api/*`·`/health`가 먼저 매칭되고, 폴백은 `api/`로 시작하면 JSON 404, dist 안의 실제 파일이면 그 파일, 나머지는 `index.html`(`Cache-Control: no-cache`).
 
+**컨테이너:** `make app-up` → `docker/Dockerfile` 멀티 스테이지(Node 22로 `npm ci && npm run build` → `python:3.12-slim`에 `backend/app`·`migrations`·`dist`만 복사). 시작 시 `alembic upgrade head` 후 uvicorn 워커 1개. compose `app` 서비스(프로필 `app`)는 저장소 루트 `.env`를 `env_file`로 받고 `DATABASE_URL`만 `db:5432`로 덮어쓴다. 호스트 포트 8080 → `make smoke URL=http://localhost:8080`.
+
 **개발 실행:** 백엔드 `cd backend && .venv/bin/uvicorn app.main:app --reload`(:8000) + `cd frontend && npm run dev`(:5173). Vite 프록시가 `/api`·`/health`를 :8000으로 넘긴다.
 
 ## 3. 불변 조건과 실패 모드
@@ -39,9 +41,16 @@ App (토큰 있음?) ──▶ AskPage
 | 폴백은 dist 밖 파일을 내보내지 않는다 | `/../.env` 같은 경로로 서버 비밀값이 새어 나간다 | `frontend.py` `resolve()` + `is_relative_to(dist)`, `test_path_traversal_does_not_escape_dist` |
 | 정적 라우트는 OpenAPI에 나오지 않는다 | `docs/generated/openapi.json` 스냅샷이 바뀌어 계약 문서에 화면 경로가 섞인다 | `include_in_schema=False`, `test_openapi_has_no_frontend_routes` |
 | `frontend_dist_dir` 기본값은 실행 위치와 무관한 절대 경로 | `backend/`에서 띄운 uvicorn이 상대 경로를 못 찾아 화면 없이 API만 뜬다(오류 없음) | `config.py` `REPO_ROOT`, `test_default_dist_dir_is_repo_frontend_regardless_of_cwd` |
+| 이미지에 `.env`·`data/`·평가 산출물이 없다 | 이미지를 레지스트리·서버에 올리는 순간 API 키와 강의 원문이 같이 나간다 | `.dockerignore`, Dockerfile에 `COPY .`·`COPY .env` 없음, `structural/test_dockerignore.py` |
+| uvicorn 워커는 1개 | 로그인 시도 제한이 프로세스 메모리라 워커 수만큼 제한이 풀린다 | Dockerfile `CMD` `--workers 1` (테스트 없음 — 바꿀 때 `throttle.py`를 DB·Redis로 옮겨야 함) |
+| 컨테이너 안 `DATABASE_URL`은 `db:5432` | `.env`의 `localhost:5433`이 그대로 쓰이면 마이그레이션 단계에서 연결 실패로 컨테이너가 재시작을 반복한다 | `docker-compose.yml` `app.environment` |
+| 500(처리 안 된 예외)은 "서버 오류", 502~504만 "연결할 수 없음" | 공급사 키 오류 같은 서버 문제를 학생이 자기 인터넷 문제로 오해한다 | `api.js` `errorMessage`, `api.test.js::internal server error…` |
 | 공지 코드 원문은 화면에 나가지 않는다 | `tool_error:search_major` 같은 내부 이름이 학생에게 보인다 | `notices.js` 기본값 숨김, `notices.test.js` |
 
 ## 4. 다음 수정
+
+- **M4b(배포):** Caddy 뒤에서는 `request.client.host`가 모두 프록시 IP가 되어 IP별 로그인 제한(20회)이 반 전체에 걸린다 → `FORWARDED_ALLOW_IPS`를 Caddy 네트워크로 지정하고 `X-Forwarded-For` 기준 제한을 테스트한다.
+- 공급사 인증 오류(잘못된 API 키)는 지금 500이다 — 키를 고칠 때까지 모든 질문이 실패하고 한도도 돌려주지 않는다. 운영 전 `.env` 키 확인을 배포 점검표에 넣는다.
 
 - 본문 `[n]`을 눌러 출처로 이동하는 링크, 남은 한도 표시(API 없음), 대화 기록 — 범위 밖(M4a 계획).
 

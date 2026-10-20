@@ -14,3 +14,24 @@ services:
       retries: 30
     volumes:
       - ./volumes/db:/var/lib/postgresql/data
+
+  # 화면+API 컨테이너. 프로필이 있어 `make db-up`은 기존처럼 DB만 띄운다 → `make app-up`
+  app:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    env_file: ../.env
+    environment:
+      # .env의 localhost:5433은 호스트에서 보는 주소 — 컨테이너 안에서는 서비스 이름 db의 5432다
+      DATABASE_URL: postgresql+psycopg://dept_rag:dept_rag@db:5432/dept_rag
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20

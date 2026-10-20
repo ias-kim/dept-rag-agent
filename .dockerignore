@@ -1,0 +1,18 @@
+# 이미지에 들어가면 안 되는 것 — 비밀값·원본 자료·평가 산출물(강의 원문 포함)·로컬 환경
+# 검사: backend/tests/structural/test_dockerignore.py
+.env
+.env.*
+!.env.example
+data
+eval/runs
+eval/grading
+docker/volumes
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+.git
+.superpowers
+.claude
+frontend/dist
