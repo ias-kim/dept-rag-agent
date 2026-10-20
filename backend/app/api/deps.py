@@ -37,6 +37,7 @@ def require_auth_configured(settings: Settings) -> None:
 @dataclass(frozen=True)
 class AuthedUser:
     user_id: int
+    username: str
     courses: frozenset[str]
     daily_quota: int
 
@@ -71,7 +72,7 @@ def current_user(
     user = get_user(session, user_id)
     if user is None:  # 토큰 발급 뒤 삭제된 계정 — 남은 토큰으로 계속 질문하면 안 된다
         raise UNAUTHORIZED
-    return AuthedUser(user.id, user_courses(session, user.id), user.daily_quota)
+    return AuthedUser(user.id, user.username, user_courses(session, user.id), user.daily_quota)
 
 
 @lru_cache

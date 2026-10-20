@@ -55,6 +55,11 @@ class SourceOut(BaseModel):
     section: str | None
 
 
+class MeResponse(BaseModel):
+    username: str
+    courses: list[str]
+
+
 class AskResponse(BaseModel):
     answer: str
     sources: list[SourceOut]
@@ -75,6 +80,13 @@ def login(body: LoginRequest, request: Request, session: SessionDep, settings: S
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다")
     throttle.succeeded(ip, body.username)
     return TokenResponse(access_token=issue_token(user.id, secret=settings.jwt_secret, ttl_hours=settings.jwt_ttl_hours))
+
+
+@router.get("/me", response_model=MeResponse)
+def me(user: Annotated[AuthedUser, Depends(current_user)]) -> MeResponse:
+    """화면 상단의 수강 과목 표시용. 과목은 current_user가 매 요청 DB에서 읽으므로 수강 변경이 바로 보인다.
+    한도를 차감하지 않는다 — 화면을 열 때마다 부르는 요청이라 깎으면 질문도 안 했는데 한도가 줄어든다."""
+    return MeResponse(username=user.username, courses=sorted(user.courses))
 
 
 @router.post("/ask", response_model=AskResponse)
