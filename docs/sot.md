@@ -22,4 +22,6 @@
 | 답변 생성 프롬프트 | `backend/app/core/prompts/answer.md` | 평가 실행 meta의 `prompt_hash` | 실행 기록 |
 | 의도 분류 프롬프트 | `backend/app/core/prompts/classify.md` | 평가 meta의 `classify_prompt_hash` | 실행 기록 |
 | 처리 표 (의도 × 수강 여부 → 도구) | `backend/app/core/router.py` `plan()` | 설계 §5 표, `docs/dev-notes/router.md` | `tests/test_router.py` (게이트 1) |
+| 화면 공지 문구 (서버 공지 코드 → 학생용 문구) | `frontend/src/notices.js` | 질문 화면 안내 | `frontend/src/notices.test.js` (게이트 1) |
+| 컨테이너 이미지 구성·제외 목록 | `docker/Dockerfile`, `.dockerignore` | `docker/docker-compose.yml` `app` | `tests/structural/test_dockerignore.py` (게이트 1) |
 | 평가 비교표 | `eval/runs/`, `eval/grading/` (로컬) | `docs/generated/eval-comparison.md` | `make eval-report` 재생성 |

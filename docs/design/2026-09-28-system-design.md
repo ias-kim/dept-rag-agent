@@ -159,12 +159,14 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 | M2 | 3 | MCP 서버 2도구, 생성·출처 검증, 평가셋 작성·동결, `make eval` | 기준선 1차 측정 |
 | M3a | 4 | `classify`/`plan`, workflow 모드, 평가 `MODE`·의도 정확도 | 의도 정확도, 라우터 효과 |
 | M3b | 4~5 | 로그인·JWT·CLI·일일 한도, `/api/ask` | API로 질문·답변, 한도 동작 |
-| M4 | 5 | 화면 2종, Docker, CloudFormation, Caddy, 얇은 배포 | HTTPS URL에서 질문·답변 |
+| M4a | 5 | 화면 2종, 정적 서빙, Docker 이미지·로컬 compose | `make app-up` 후 :8080에서 로그인·질문·출처 표시 |
+| M4b | 5~7 | CloudFormation, Caddy, DuckDNS, 얇은 배포 (스파이크 S3 결과 후 계획) | HTTPS URL에서 질문·답변 |
 | M5 | 6 | 에이전트 루프, 통합 테스트, 권한 설계 문서 | agent 모드 평가 실행 |
 | M6 | 7 | 실패 분석·하이브리드(필요 시), S3 동기화, 2차 측정 | 비교표 |
 | M7 | 8 | README, 데모 영상, 결과보고서 | 제출 |
 
 계획서 대비 조정: 배포를 5주차로 앞당김(7주차 문장은 여전히 충족), 3주차 기준선은 라우터 없이 측정.
+2026-10-20: M4를 M4a(화면·이미지)와 M4b(AWS 배포)로 분할 — 스파이크 S3(공용 계정 IAM 역할 생성) 미확인 상태에서 스택 템플릿을 쓰지 않는다. 5주차 계획서 문장은 M4a로 충족.
 
 ## 9. 위험과 감수 사항
 

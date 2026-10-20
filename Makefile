@@ -4,7 +4,7 @@
 VENV ?= backend/.venv
 PY   ?= $(VENV)/bin/python
 
-.PHONY: setup lint lint-py lint-fe test generate check smoke db-up migrate ingest eval eval-freeze eval-report chunk-compare users
+.PHONY: setup lint lint-py lint-fe test test-py test-fe generate check smoke db-up build-fe app-up migrate ingest eval eval-freeze eval-report chunk-compare users
 
 setup:
 	@if [ -x $(PY) ] && ! $(PY) -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))'; then \
@@ -21,8 +21,13 @@ lint-py:
 lint-fe:
 	cd frontend && npm run --silent lint
 
-test:
+test: test-py test-fe
+
+test-py:
 	$(PY) -m pytest -q backend
+
+test-fe:
+	cd frontend && npm run --silent test
 
 generate:
 	$(PY) backend/scripts/gen_openapi.py
@@ -31,8 +36,17 @@ generate:
 check: lint test
 
 # 서버를 띄운 상태에서 "고쳤다"를 직접 확인하는 스모크 테스트
+# 다른 주소 확인: make smoke URL=http://localhost:8080 (컨테이너) · URL=https://<도메인> (배포)
+URL ?= http://localhost:8000
 smoke:
-	curl -fsS http://localhost:8000/health && echo
+	curl -fsS $(URL)/health && echo
+
+build-fe:
+	cd frontend && npm run build
+
+# 화면+API 컨테이너를 빌드해 띄운다 (http://localhost:8080). 비밀값은 저장소 루트 .env에서 실행 시 주입
+app-up:
+	docker compose -f docker/docker-compose.yml --profile app up -d --build --wait
 
 db-up:
 	docker compose -f docker/docker-compose.yml up -d --wait

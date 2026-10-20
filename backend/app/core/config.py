@@ -3,6 +3,8 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -29,6 +31,8 @@ class Settings(BaseSettings):
     login_max_attempts_per_account: int = 5  # (IP, 아이디)별 — 창 안에서 이만큼 시도하면 429
     login_max_attempts_per_ip: int = 20  # IP별 — 아이디를 바꿔 가며 뿌리는 시도까지 막는다
     login_window_minutes: int = 15
+    # 빌드된 화면 위치. 없으면 API만 뜬다(app/main.py). 컨테이너는 FRONTEND_DIST_DIR로 덮어쓴다
+    frontend_dist_dir: Path = REPO_ROOT / "frontend" / "dist"
 
 
 @lru_cache

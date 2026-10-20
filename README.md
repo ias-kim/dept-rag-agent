@@ -43,15 +43,17 @@ til/{이름}/     팀원별 학습 기록 (매주 1편 이상)
 
 ## 로컬 개발 환경 세팅
 
-필요: Python 3.12, [uv](https://docs.astral.sh/uv/), Node 20+, Docker
+필요: Python 3.12, [uv](https://docs.astral.sh/uv/), Node 20.19+, Docker
 
 ```bash
 make setup                                           # backend/.venv(3.12) + frontend 의존성
 docker compose -f docker/docker-compose.yml up -d    # DB (PostgreSQL + pgvector)
 cd backend && .venv/bin/uvicorn app.main:app --reload
-cd frontend && npm run dev
+cd frontend && npm run dev                            # 화면 http://localhost:5173 (/api는 :8000으로 프록시)
 make check                                           # 커밋 전 검증 (CI와 동일)
 ```
+
+화면과 API를 한 컨테이너로 확인하려면 `make app-up` → http://localhost:8080 (`make smoke URL=http://localhost:8080`). 비밀값은 저장소 루트 `.env`에서 실행 시 주입되며 이미지에는 들어가지 않습니다.
 
 명령 전체와 작업 규칙은 [`AGENTS.md`](AGENTS.md)에 있습니다.
 
