@@ -220,3 +220,26 @@ async def test_embedding_failure_surfaces_instead_of_becoming_no_evidence(sessio
     d = replace(deps(session, FakeLLM("답[C1].")), embed_query=broken_embed)
     with pytest.raises(ProviderDown):
         await answer_question("q", user("CS101"), d)
+
+
+@pytest.mark.anyio
+async def test_db_error_inside_tool_becomes_tool_error_not_500(session, monkeypatch):
+    """MCP 2.2는 도구 안 예외를 isError가 아니라 MCPError로 던진다. 잡지 않으면 DB 오류 하나로 질문 전체가 500이 되고,
+    agent 모드(같은 장애 → tool_error)와 평가에서 다르게 집계된다."""
+    from sqlalchemy import text
+
+    from app.mcp import server
+
+    seed_chunks(session, CORPUS)
+    session.commit()
+    real = server.search_chunks
+
+    def academic_db_error(*args, **kwargs):
+        if kwargs["scope"] == "academic":
+            args[0].execute(text("SELECT 1/0"))  # 트랜잭션 중단 — 되돌리지 않으면 이어지는 전공 검색도 실패한다
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(server, "search_chunks", academic_db_error)
+    answer = await answer_question("q", user("CS101"), deps(session, FakeLLM("답[C2].")))
+    assert "tool_error:search_academic" in answer.notices
+    assert [h.source for h in answer.retrieved] == ["major/CS101/lec1.pdf"]

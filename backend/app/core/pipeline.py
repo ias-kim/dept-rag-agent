@@ -13,6 +13,7 @@ from datetime import date
 from typing import Any
 
 import anyio
+from mcp.shared.exceptions import MCPError
 from sqlalchemy.orm import Session
 
 from app.core.agent import run_agent
@@ -96,6 +97,11 @@ async def answer_question(question: str, user: UserContext, deps: PipelineDeps, 
                 hits.extend(parse_hits(await client.call_tool(name, {"query": question})))
             except ToolError:
                 notices.append(f"tool_error:{name}")  # 도구 하나의 실패가 답변 전체를 막지 않게 한다
+            except MCPError:
+                # MCP 2.2는 도구 안 예외(DB 오류 등)를 isError가 아니라 MCPError로 던진다. 잡지 않으면 질문 전체가 500이 된다.
+                # 세션을 되돌려야 중단된 트랜잭션 때문에 다음 도구까지 실패하지 않는다
+                deps.session.rollback()
+                notices.append(f"tool_error:{name}")
     today = deps.today()
     answer = await anyio.to_thread.run_sync(
         lambda: generate_answer(deps.llm, question, merge_hits(hits, k=s.search_k), model=s.generation_model,
@@ -105,7 +111,7 @@ async def answer_question(question: str, user: UserContext, deps: PipelineDeps, 
 
 async def _answer_with_agent(question: str, user: UserContext, deps: PipelineDeps) -> Answer:
     """agent는 모델이 검색어를 바꾸므로 질문을 미리 임베딩하지 않는다(낭비). 대신 도구 안 임베딩 예외를 기록했다가
-    check_upstream이 원래 예외로 다시 던진다 — workflow의 사전 임베딩과 같은 목적(장애를 "자료 없음"으로 삼키지 않기)."""
+    on_tool_failure가 원래 예외로 다시 던진다 — workflow의 사전 임베딩과 같은 목적(장애를 "자료 없음"으로 삼키지 않기)."""
     s = deps.settings
     embed_errors: list[Exception] = []
 
@@ -116,10 +122,11 @@ async def _answer_with_agent(question: str, user: UserContext, deps: PipelineDep
             embed_errors.append(e)
             raise
 
-    def check_upstream() -> None:
+    def on_tool_failure() -> None:
         if embed_errors:
             raise embed_errors[0]
+        deps.session.rollback()  # 중단된 트랜잭션을 풀어 모델의 재시도가 동작하게 한다
 
     server = build_server(user, deps.session, embed_watched, k=s.search_k, min_score=s.search_min_score)
     async with connect(server) as client:
-        return await run_agent(question, client, deps.llm, s, today=deps.today(), check_upstream=check_upstream)
+        return await run_agent(question, client, deps.llm, s, today=deps.today(), on_tool_failure=on_tool_failure)

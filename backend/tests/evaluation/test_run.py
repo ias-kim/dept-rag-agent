@@ -139,3 +139,15 @@ def test_evaluate_item_recall_uses_top_k_of_accumulated_agent_hits():
     answer = Answer("a", [], True, retrieved=hits, tools_called=["search_academic", "search_academic"])
     assert evaluate_item(ITEM, answer, 1, k=1)["recall_at_k"] is False
     assert evaluate_item(ITEM, answer, 1, k=2)["recall_at_k"] is True
+
+
+def test_agent_prompt_hash_covers_tool_definitions(monkeypatch):
+    # 도구 설명도 모델의 도구 선택을 바꾼다 — 해시에 없으면 설명만 바꾼 실행이 같은 조건으로 보인다
+    from mcp import types
+
+    from app.core import agent
+
+    before = agent.agent_prompt_hash()
+    monkeypatch.setattr(agent, "visible_tools", lambda user: [
+        types.Tool(name="search_academic", description="바뀐 설명", inputSchema={"type": "object"})])
+    assert agent.agent_prompt_hash() != before

@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.core.agent import INVALID_TOOL_CALL, TOOL_LIMIT_REACHED
+from app.core.agent import INVALID_TOOL_CALL, TOOL_ERROR_TEXT, TOOL_LIMIT_REACHED
 from app.core.answer import EMPTY, REFUSED, Source
 from app.core.config import Settings
 from app.core.pipeline import PipelineDeps, answer_question
@@ -96,16 +96,19 @@ async def test_agent_first_message_has_today_and_no_courses(session):
     assert "CS101" not in first["system"] + json.dumps(first["messages"], ensure_ascii=False)
 
 
-def record_searches(monkeypatch, fail_first=False):
-    """MCP 서버 안의 실제 SQL 검색 호출을 기록한다. fail_first면 첫 호출에서 DB 장애를 흉내 낸다."""
+def record_searches(monkeypatch, fail_first=False, fail_times=1):
+    """MCP 서버 안의 실제 SQL 검색 호출을 기록한다. fail_first면 처음 fail_times번은 실제 DB 오류를 낸다 —
+    잘못된 SQL로 트랜잭션을 중단 상태로 만들어, 되돌리지 않으면 이어지는 검색도 실패하게 한다."""
+    from sqlalchemy import text
+
     from app.mcp import server
 
     real, calls = server.search_chunks, []
 
     def spy(*args, **kwargs):
         calls.append(kwargs["scope"])
-        if fail_first and len(calls) == 1:
-            raise RuntimeError("db down")
+        if fail_first and len(calls) <= fail_times:
+            args[0].execute(text("SELECT 1/0"))  # 비밀번호=secret 같은 내부 문장이 오류에 실린다고 가정할 자리
         return real(*args, **kwargs)
 
     monkeypatch.setattr(server, "search_chunks", spy)
@@ -134,15 +137,29 @@ async def test_agent_cap_across_turns(session, monkeypatch):
     llm = FakeLLM(script=[tool_use_reply(academic_block(i)) for i in range(5)] + [text_reply(f"답 [C{ACADEMIC_ID}]")])
     answer = await ask(session, llm)
     assert len(searches) == 4 and answer.tools_called == ["search_academic"] * 4
-    assert TOOL_LIMIT_REACHED in answer.notices and len(llm.calls) == 6
+    assert TOOL_LIMIT_REACHED in answer.notices and len(llm.calls) == 5  # 루프 4회 + 강제 생성 1회
 
 
 @pytest.mark.anyio
-async def test_agent_four_calls_then_answer_is_not_forced(session):
+async def test_agent_fourth_call_goes_straight_to_forced_generation(session):
+    # 4회를 채운 뒤 도구 목록과 함께 모델을 또 부르면, 모델이 도구를 다시 요청할 때 그 호출이 통째로 버려진다
     seed_chunks(session, CORPUS)
     llm = FakeLLM(script=[tool_use_reply(*(academic_block(i) for i in range(4))), text_reply(f"답 [C{ACADEMIC_ID}]")])
     answer = await ask(session, llm)
-    assert TOOL_LIMIT_REACHED not in answer.notices and len(answer.tools_called) == 4 and len(llm.calls) == 2
+    assert len(answer.tools_called) == 4 and TOOL_LIMIT_REACHED in answer.notices
+    assert len(llm.calls) == 2 and "tools" not in llm.calls[1]
+
+
+@pytest.mark.anyio
+async def test_agent_partial_budget_in_one_response(session, monkeypatch):
+    seed_chunks(session, CORPUS)
+    searches = record_searches(monkeypatch)
+    llm = FakeLLM(script=[tool_use_reply(*(academic_block(i) for i in range(3))),
+                          tool_use_reply(academic_block(3), academic_block(4)), text_reply(f"답 [C{ACADEMIC_ID}]")])
+    answer = await ask(session, llm)
+    assert len(searches) == 4 and len(answer.tools_called) == 4
+    # 두 번째 응답의 tool_use는 짝 맞는 tool_result 없이 다시 보내지 않는다(보내면 API 400) — 강제 생성은 새 대화다
+    assert len(llm.calls) == 3 and "tools" not in llm.calls[2] and len(llm.calls[2]["messages"]) == 1
 
 
 @pytest.mark.anyio
@@ -150,6 +167,7 @@ async def test_agent_four_calls_then_answer_is_not_forced(session):
     ("t1", "search_major", {"query": "lec"}),  # 게스트에게 숨긴 도구
     ("t1", "search_academic", {"query": ["a"]}),  # 문자열이 아닌 query
     ("t1", "search_academic", {"query": "  "}),  # 빈 query
+    ("t1", "search_academic", {"query": "가" * 501}),  # 질문 상한(500자)보다 긴 검색어 — 임베딩 4xx로 500이 난다
 ])
 async def test_agent_invalid_call_is_not_executed(session, monkeypatch, block):
     seed_chunks(session, CORPUS)
@@ -165,6 +183,7 @@ async def test_agent_invalid_call_is_not_executed(session, monkeypatch, block):
 @pytest.mark.anyio
 async def test_agent_tool_error_is_reported_and_loop_continues(session, monkeypatch):
     seed_chunks(session, CORPUS)
+    session.commit()  # 운영처럼 자료는 확정돼 있다 — 실패 뒤 되돌리기가 시드까지 지우지 않게
     record_searches(monkeypatch, fail_first=True)
     llm = FakeLLM(script=[
         tool_use_reply(academic_block(1)), tool_use_reply(academic_block(2)), text_reply(f"다시 찾은 답 [C{ACADEMIC_ID}]"),
@@ -206,3 +225,32 @@ async def test_agent_refusal_and_truncation(session):
     assert empty.text == EMPTY and empty.notices == ["empty"]
     cut = await ask(session, FakeLLM(script=[text_reply("제공된 자료에서 답을 찾을 수 없습니다.", stop_reason="max_tokens")]))
     assert "truncated" in cut.notices
+
+
+@pytest.mark.anyio
+async def test_agent_tool_error_text_is_not_forwarded_to_model(session, monkeypatch):
+    from app.mcp import server
+
+    def leak(*args, **kwargs):
+        raise RuntimeError('relation "chunks" password=secret')
+
+    seed_chunks(session, CORPUS)
+    monkeypatch.setattr(server, "search_chunks", leak)
+    llm = FakeLLM(script=[tool_use_reply(academic_block(1)), text_reply("제공된 자료에서 답을 찾을 수 없습니다.")])
+    await ask(session, llm)
+    result = llm.calls[1]["messages"][2]["content"][0]
+    assert result["is_error"] is True and result["content"] == TOOL_ERROR_TEXT
+    assert "secret" not in json.dumps(llm.calls[1]["messages"], ensure_ascii=False, default=str)
+
+
+@pytest.mark.anyio
+async def test_agent_db_error_is_rolled_back_so_retry_works(session, monkeypatch):
+    seed_chunks(session, CORPUS)
+    session.commit()
+    record_searches(monkeypatch, fail_first=True, fail_times=2)
+    llm = FakeLLM(script=[tool_use_reply(academic_block(1)), tool_use_reply(academic_block(2)),
+                          tool_use_reply(academic_block(3)), text_reply(f"다시 찾은 답 [C{ACADEMIC_ID}]")])
+    answer = await ask(session, llm)
+    assert answer.citation_ok  # 세 번째 검색이 실제로 조각을 찾았다 = 중단된 트랜잭션이 되돌려졌다
+    assert answer.notices.count("tool_error:search_academic") == 1  # 같은 도구 장애는 한 번만
+    assert answer.tools_called == ["search_academic"] * 3  # 오류 난 호출도 실행한 호출이다
