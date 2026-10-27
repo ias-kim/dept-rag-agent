@@ -13,6 +13,7 @@ import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
 from datetime import date, datetime
+from functools import partial
 from pathlib import Path
 
 import anyio
@@ -70,7 +71,7 @@ def require_frozen(questions: Path, frozen: Path) -> None:
     check_frozen(questions, frozen)
 
 
-def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
+def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int, *, k: int | None = None) -> dict:
     return {
         "id": item.id,
         "intent": item.intent,
@@ -81,7 +82,7 @@ def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
         "notices": list(answer.notices),
         "citation_ok": answer.citation_ok,
         "latency_ms": latency_ms,
-        "recall_at_k": recall_at_k(item, answer.retrieved),
+        "recall_at_k": recall_at_k(item, answer.retrieved, k),
         "source_match": source_match(item, answer.sources),
         "none_handled": none_handled(item, answer),
         "key_points": list(item.key_points),
@@ -97,12 +98,12 @@ def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
 
 
 async def run_items(items: Sequence[EvalItem], answer_fn: Callable[[str], Awaitable[Answer]],
-                    clock: Callable[[], float] = time.perf_counter) -> list[dict]:
+                    clock: Callable[[], float] = time.perf_counter, *, k: int | None = None) -> list[dict]:
     records = []
     for item in items:
         started = clock()
         answer = await answer_fn(item.question)
-        records.append(evaluate_item(item, answer, round((clock() - started) * 1000)))
+        records.append(evaluate_item(item, answer, round((clock() - started) * 1000), k=k))
     return records
 
 
@@ -161,7 +162,8 @@ def main(argv: list[str] | None = None) -> None:
         courses = frozenset(c for c in session.scalars(select(Document.course_code).distinct()) if c)
         deps = PipelineDeps(session=session, embed_query=lambda q: embedder.embed([q])[0], llm=llm, settings=settings)
         user = UserContext(user_id=0, courses=courses)
-        records = anyio.run(run_items, items, lambda q: answer_question(q, user, deps, mode=args.mode))
+        records = anyio.run(partial(run_items, k=settings.search_k), items,
+                            lambda q: answer_question(q, user, deps, mode=args.mode))
     meta = run_meta(args.label, args.mode, commit, settings, n=len(records))
     _, grading_path = write_run(records, meta, REPO_ROOT / "eval", name)
     print(f"{name}: recall@k {rate(r['recall_at_k'] for r in records)}, "

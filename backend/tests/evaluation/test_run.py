@@ -132,3 +132,10 @@ def test_run_meta_records_agent_settings_for_every_mode():
     meta = run_meta("router-v3", "workflow", "abc1234", Settings(_env_file=None, agent_max_tool_calls=4), n=36)
     assert meta["agent_prompt_hash"] == agent_prompt_hash() and meta["agent_max_tool_calls"] == 4
     assert meta["mode"] == "workflow" and meta["n"] == 36 and meta["commit"] == "abc1234"
+
+
+def test_evaluate_item_recall_uses_top_k_of_accumulated_agent_hits():
+    hits = [make_hit(1, "academic/b.pdf", 2, score=0.9), make_hit(2, "academic/a.pdf", 2, score=0.4)]
+    answer = Answer("a", [], True, retrieved=hits, tools_called=["search_academic", "search_academic"])
+    assert evaluate_item(ITEM, answer, 1, k=1)["recall_at_k"] is False
+    assert evaluate_item(ITEM, answer, 1, k=2)["recall_at_k"] is True

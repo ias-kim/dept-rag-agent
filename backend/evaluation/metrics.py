@@ -12,11 +12,14 @@ def _gold(item: EvalItem) -> set[tuple[str, int]]:
     return {(g.file, g.page) for g in item.gold_sources}
 
 
-def recall_at_k(item: EvalItem, retrieved: Sequence[ChunkHit]) -> bool | None:
+def recall_at_k(item: EvalItem, retrieved: Sequence[ChunkHit], k: int | None = None) -> bool | None:
+    """k가 있으면 점수 상위 k개만 본다. agent는 도구 호출마다 조각이 누적돼 k개를 넘으므로,
+    자르지 않으면 workflow와 비교할 때 후보가 많다는 이유만으로 recall이 높게 나온다."""
     if item.intent == "none":
         return None
     gold = _gold(item)
-    for h in retrieved:
+    top = sorted(retrieved, key=lambda h: -h.score)[:k] if k is not None else retrieved
+    for h in top:
         normalized_source = unicodedata.normalize("NFC", h.source)
         if (normalized_source, h.page) in gold:
             return True
