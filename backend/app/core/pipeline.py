@@ -104,7 +104,22 @@ async def answer_question(question: str, user: UserContext, deps: PipelineDeps, 
 
 
 async def _answer_with_agent(question: str, user: UserContext, deps: PipelineDeps) -> Answer:
+    """agent는 모델이 검색어를 바꾸므로 질문을 미리 임베딩하지 않는다(낭비). 대신 도구 안 임베딩 예외를 기록했다가
+    check_upstream이 원래 예외로 다시 던진다 — workflow의 사전 임베딩과 같은 목적(장애를 "자료 없음"으로 삼키지 않기)."""
     s = deps.settings
-    server = build_server(user, deps.session, deps.embed_query, k=s.search_k, min_score=s.search_min_score)
+    embed_errors: list[Exception] = []
+
+    def embed_watched(query: str) -> Sequence[float]:
+        try:
+            return deps.embed_query(query)
+        except Exception as e:
+            embed_errors.append(e)
+            raise
+
+    def check_upstream() -> None:
+        if embed_errors:
+            raise embed_errors[0]
+
+    server = build_server(user, deps.session, embed_watched, k=s.search_k, min_score=s.search_min_score)
     async with connect(server) as client:
-        return await run_agent(question, client, deps.llm, s, today=deps.today(), check_upstream=lambda: None)
+        return await run_agent(question, client, deps.llm, s, today=deps.today(), check_upstream=check_upstream)

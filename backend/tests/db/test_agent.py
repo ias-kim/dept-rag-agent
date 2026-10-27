@@ -3,7 +3,8 @@ from datetime import date
 
 import pytest
 
-from app.core.answer import Source
+from app.core.agent import INVALID_TOOL_CALL, TOOL_LIMIT_REACHED
+from app.core.answer import EMPTY, REFUSED, Source
 from app.core.config import Settings
 from app.core.pipeline import PipelineDeps, answer_question
 from app.mcp.server import UserContext
@@ -93,3 +94,115 @@ async def test_agent_first_message_has_today_and_no_courses(session):
     first = llm.calls[0]
     assert first["messages"][0]["content"].startswith("오늘 날짜: 2026-09-30")
     assert "CS101" not in first["system"] + json.dumps(first["messages"], ensure_ascii=False)
+
+
+def record_searches(monkeypatch, fail_first=False):
+    """MCP 서버 안의 실제 SQL 검색 호출을 기록한다. fail_first면 첫 호출에서 DB 장애를 흉내 낸다."""
+    from app.mcp import server
+
+    real, calls = server.search_chunks, []
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs["scope"])
+        if fail_first and len(calls) == 1:
+            raise RuntimeError("db down")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(server, "search_chunks", spy)
+    return calls
+
+
+def academic_block(i):
+    return (f"t{i}", "search_academic", {"query": f"일정 {i}"})
+
+
+@pytest.mark.anyio
+async def test_agent_cap_counts_blocks_not_turns(session):
+    seed_chunks(session, CORPUS)
+    llm = FakeLLM(script=[tool_use_reply(*(academic_block(i) for i in range(5))), text_reply(f"모은 자료로 답 [C{ACADEMIC_ID}]")])
+    answer = await ask(session, llm)
+    assert answer.tools_called == ["search_academic"] * 4
+    assert TOOL_LIMIT_REACHED in answer.notices
+    assert len(llm.calls) == 2 and "tools" not in llm.calls[1]  # 두 번째는 도구 없는 강제 생성
+    assert answer.citation_ok and answer.sources == [Source("academic/calendar.pdf", 1, None)]
+
+
+@pytest.mark.anyio
+async def test_agent_cap_across_turns(session, monkeypatch):
+    seed_chunks(session, CORPUS)
+    searches = record_searches(monkeypatch)
+    llm = FakeLLM(script=[tool_use_reply(academic_block(i)) for i in range(5)] + [text_reply(f"답 [C{ACADEMIC_ID}]")])
+    answer = await ask(session, llm)
+    assert len(searches) == 4 and answer.tools_called == ["search_academic"] * 4
+    assert TOOL_LIMIT_REACHED in answer.notices and len(llm.calls) == 6
+
+
+@pytest.mark.anyio
+async def test_agent_four_calls_then_answer_is_not_forced(session):
+    seed_chunks(session, CORPUS)
+    llm = FakeLLM(script=[tool_use_reply(*(academic_block(i) for i in range(4))), text_reply(f"답 [C{ACADEMIC_ID}]")])
+    answer = await ask(session, llm)
+    assert TOOL_LIMIT_REACHED not in answer.notices and len(answer.tools_called) == 4 and len(llm.calls) == 2
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("block", [
+    ("t1", "search_major", {"query": "lec"}),  # 게스트에게 숨긴 도구
+    ("t1", "search_academic", {"query": ["a"]}),  # 문자열이 아닌 query
+    ("t1", "search_academic", {"query": "  "}),  # 빈 query
+])
+async def test_agent_invalid_call_is_not_executed(session, monkeypatch, block):
+    seed_chunks(session, CORPUS)
+    searches = record_searches(monkeypatch)
+    llm = FakeLLM(script=[tool_use_reply(block), text_reply("제공된 자료에서 답을 찾을 수 없습니다.")])
+    answer = await ask(session, llm)
+    assert searches == []
+    assert INVALID_TOOL_CALL in answer.notices
+    assert not any(n.startswith("tool_error:") for n in answer.notices)  # 모델 실수를 장애로 집계하지 않는다
+    assert llm.calls[1]["messages"][2]["content"][0]["is_error"] is True
+
+
+@pytest.mark.anyio
+async def test_agent_tool_error_is_reported_and_loop_continues(session, monkeypatch):
+    seed_chunks(session, CORPUS)
+    record_searches(monkeypatch, fail_first=True)
+    llm = FakeLLM(script=[
+        tool_use_reply(academic_block(1)), tool_use_reply(academic_block(2)), text_reply(f"다시 찾은 답 [C{ACADEMIC_ID}]"),
+    ])
+    answer = await ask(session, llm)
+    assert "tool_error:search_academic" in answer.notices
+    assert llm.calls[1]["messages"][2]["content"][0]["is_error"] is True
+    assert answer.text.startswith("다시 찾은 답") and answer.citation_ok
+
+
+@pytest.mark.anyio
+async def test_agent_embedding_failure_surfaces(session):
+    seed_chunks(session, CORPUS)
+
+    def down(q):
+        raise RuntimeError("embedding down")
+
+    llm = FakeLLM(script=[tool_use_reply(academic_block(1)), text_reply("자료가 없습니다")])
+    with pytest.raises(RuntimeError, match="embedding down"):
+        await ask(session, llm, embed=down)
+    assert len(llm.calls) == 1  # 장애를 "자료 없음" 답으로 바꾸지 않고 바로 멈춘다
+
+
+@pytest.mark.anyio
+async def test_agent_direct_answer_without_tools(session):
+    seed_chunks(session, CORPUS)
+    declined = await ask(session, FakeLLM(script=[text_reply("제공된 자료에서 답을 찾을 수 없습니다.")]))
+    assert declined.citation_ok and declined.sources == [] and declined.tools_called == []
+    claimed = await ask(session, FakeLLM(script=[text_reply("스택은 LIFO 구조다.")]))
+    assert "no_citation" in claimed.notices and not claimed.citation_ok
+
+
+@pytest.mark.anyio
+async def test_agent_refusal_and_truncation(session):
+    seed_chunks(session, CORPUS)
+    refused = await ask(session, FakeLLM(script=[text_reply("", stop_reason="refusal")]))
+    assert refused.text == REFUSED and refused.notices == ["refused"]
+    empty = await ask(session, FakeLLM(script=[text_reply("  ")]))
+    assert empty.text == EMPTY and empty.notices == ["empty"]
+    cut = await ask(session, FakeLLM(script=[text_reply("제공된 자료에서 답을 찾을 수 없습니다.", stop_reason="max_tokens")]))
+    assert "truncated" in cut.notices
