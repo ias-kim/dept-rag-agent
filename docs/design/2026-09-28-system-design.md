@@ -98,7 +98,7 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 
 ## 5. 라우터와 에이전트
 
-- `ROUTER_MODE` 설정으로 전환: 현재 `baseline|workflow`(4주차), `agent`는 6주차에 추가. 분류는 Haiku 계열(분류 기본값 claude-haiku-4-5-20251001, 샘플링·effort 미사용), 생성·에이전트는 Sonnet 계열(생성 기본값 claude-sonnet-5-5 / effort medium, 거절 시 fallbacks "default"). 모델 ID는 설정값.
+- `ROUTER_MODE` 설정으로 전환: 현재 `baseline|workflow|agent`(`agent`는 6주차 M5). 분류는 Haiku 계열(분류 기본값 claude-haiku-4-5-20251001, 샘플링·effort 미사용), 생성·에이전트는 Sonnet 계열(생성 기본값 claude-sonnet-5-5 / effort medium, 거절 시 fallbacks "default"). 모델 ID는 설정값.
 - 프롬프트는 `backend/app/core/prompts/*.md`. 평가 실행마다 프롬프트 해시 기록.
 
 **처리 표 (`plan()`)**
@@ -167,6 +167,7 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 
 계획서 대비 조정: 배포를 5주차로 앞당김(7주차 문장은 여전히 충족), 3주차 기준선은 라우터 없이 측정.
 2026-10-20: M4를 M4a(화면·이미지)와 M4b(AWS 배포)로 분할 — 스파이크 S3(공용 계정 IAM 역할 생성) 미확인 상태에서 스택 템플릿을 쓰지 않는다. 5주차 계획서 문장은 M4a로 충족.
+2026-10-27: M5 착수 — agent 모드(도구 호출 4회 상한), 모드 3종 × 역할 권한 행렬, 로그인→`/api/ask`→출처 통합 테스트, 권한 설계 문서 **1판**([`permissions.md`](permissions.md)). 완성본은 계획서대로 8주차(M7). 완료 증거인 agent 모드 평가 실행(`agent-v1`)은 유료라 튜터가 따로 돌린다 — 계획: [`m5-agent`](../exec-plans/active/2026-10-27-m5-agent.md).
 
 ## 9. 위험과 감수 사항
 
