@@ -1,6 +1,7 @@
 // 서버 공지 코드 → 학생에게 보일 문구.
 // 코드 원천: backend/app/core/router.py(major_requires_enrollment·out_of_scope), pipeline.py(tool_error:<도구>),
-// answer.py(no_evidence·refused·empty·invalid_citation·no_citation·truncated).
+// answer.py(no_evidence·refused·empty·invalid_citation·no_citation·truncated),
+// agent.py(tool_limit_reached·invalid_tool_call — 학생에게 알릴 내용이 아니라 일부러 LABELS에 두지 않는다).
 // 서버에 코드가 늘었는데 여기 빠지면 그 안내가 숨겨질 뿐 화면이 깨지지는 않는다 — 코드 원문은 절대 그대로 보이지 않는다.
 
 const LABELS = {
