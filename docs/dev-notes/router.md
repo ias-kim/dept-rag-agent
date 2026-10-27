@@ -1,6 +1,6 @@
 # 라우터 (의도 분류 → 처리 표) — 4주차 workflow 모드
 
-> 마지막 갱신: 2026-10-13 · 계획: [`docs/exec-plans/done/2026-10-13-m3a-router.md`](../exec-plans/done/2026-10-13-m3a-router.md) · 설계 §5
+> 마지막 갱신: 2026-10-27(모드 3종 표·agent 링크) · 계획: [`docs/exec-plans/done/2026-10-13-m3a-router.md`](../exec-plans/done/2026-10-13-m3a-router.md) · 설계 §5
 
 ## 1. 핵심 개념
 
@@ -17,7 +17,19 @@
 
 **의도 4종.** `academic`(학사·공지) · `major`(전공 강의 내용) · `both`(둘 다 필요) · `none`(학과 자료와 무관). 분류 출력이 이 넷 중 한 단어가 아니면 `both`로 동작하고 `intent_valid=False`를 남긴다 — 답은 놓치지 않되 평가에서는 오답으로 센다.
 
-**같은 함수, 두 모드.** `answer_question(..., mode="baseline"|"workflow")`. 두 모드가 검색·생성 코드를 공유해야 "라우터를 넣어서 좋아졌다"를 다른 변수 없이 잴 수 있다.
+**같은 함수, 세 모드.** `answer_question(..., mode="baseline"|"workflow"|"agent")`. 모드들이 검색·생성 코드를 공유해야 "라우터를 넣어서 좋아졌다"를 다른 변수 없이 잴 수 있다. 이 문서는 workflow를 다룬다. agent는 [`agent.md`](agent.md).
+
+| | baseline | workflow | agent |
+|---|---|---|---|
+| 도구를 고르는 주체 | 코드 — 보이는 도구 전부 | 분류기(Haiku) + 코드 처리 표 `plan()` | 모델(Sonnet) — 보이는 도구 중에서 |
+| 의도 `intent` | 없음 | 분류 결과 | `None` (분류기 없음) |
+| 도구 호출 | 질문 1회 임베딩 후 보이는 도구마다 1회 | `plan.tools ∩ 보이는 도구`마다 1회 | 모델이 정함, **실행한 `tool_use` 블록 최대 4회** |
+| 모델 호출 수 | 생성 1 | 분류 1 + 생성 1 (안내만 하면 분류 1) | 루프 1~5 (+ 상한 도달 시 강제 생성 1) |
+| 권한 | MCP 두 겹 | MCP 두 겹 | MCP 두 겹 — 모델의 `tools` = MCP `list_tools` 결과 |
+| 평가 기록 | 기본 `--mode` | `--mode workflow` | `--mode agent`, 추가로 `tools_called` |
+| 설명 | 이 문서 | 이 문서 | [`agent.md`](agent.md) |
+
+"모델 호출 수"의 agent 칸은 계획(`m5-agent`)의 루프 규칙에서 센 값이다. 코드가 병합된 뒤 `agent.md`와 함께 맞춘다.
 
 ## 2. 데이터 흐름
 
@@ -90,7 +102,7 @@ question (str)
 - **M3b (4~5주차):** `/api/ask`가 `mode=settings.router_mode`로 이 함수를 부른다. 공급사 오류 → `UpstreamError` → 503.
 - **측정 (튜터):** 같은 커밋에서 `baseline-v2`와 `router-v1`을 재고 채점한다. 분류 오답 사례는 `classify.md` 수정 후보.
 - **7주차:** 검색 실패 문항(M08·M10·M11)은 라우터가 아니라 검색 문제 → 하이브리드 검색.
-- **6주차 agent 모드:** `MODES`에 `"agent"`를 더하고, 도구 선택을 모델에 맡긴다. 처리 표의 권한 판단은 MCP 권한 두 겹으로 계속 보장된다.
+- **6주차 agent 모드(M5):** `MODES`에 `"agent"`를 더하고 도구 선택을 모델에 맡긴다 → [`agent.md`](agent.md). 처리 표(`plan`)는 agent 모드가 쓰지 않는다. 권한은 MCP 두 겹이 보장한다 → [`permissions.md`](../design/permissions.md).
 
 ## 5. 업데이트 시 주의점
 
