@@ -153,7 +153,7 @@ async def test_blank_question_and_unknown_mode_are_rejected(session):
     with pytest.raises(ValueError):
         await answer_question("   ", user(), deps(session, FakeLLM()))
     with pytest.raises(ValueError):
-        await answer_question("q", user(), deps(session, FakeLLM()), mode="agent")
+        await answer_question("q", user(), deps(session, FakeLLM()), mode="planner")
 
 
 def counting_deps(session, llm, calls):

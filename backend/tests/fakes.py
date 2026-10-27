@@ -63,11 +63,28 @@ def make_hit(chunk_id: int, source: str = "academic/a.pdf", page: int = 1,
                     section=section, scope=scope, course_code=course, score=score)
 
 
+def text_reply(text: str, stop_reason: str = "end_turn") -> SimpleNamespace:
+    """에이전트 스크립트용 최종 응답. 실제 응답처럼 thinking 블록이 앞에 온다."""
+    content = [SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=text)]
+    return SimpleNamespace(stop_reason=stop_reason, content=content if stop_reason != "refusal" else [])
+
+
+def tool_use_reply(*blocks: tuple[str, str, dict]) -> SimpleNamespace:
+    """에이전트 스크립트용 도구 요청 응답. blocks = (tool_use_id, 도구 이름, 입력)."""
+    content = [SimpleNamespace(type="thinking", thinking="")]
+    content += [SimpleNamespace(type="tool_use", id=i, name=n, input=inp) for i, n, inp in blocks]
+    return SimpleNamespace(stop_reason="tool_use", content=content)
+
+
 class FakeLLM:
-    """anthropic 클라이언트 대역. 생성(beta.messages.create)과 분류(messages.create) 호출을 따로 기록한다."""
+    """anthropic 클라이언트 대역. 생성(beta.messages.create)과 분류(messages.create) 호출을 따로 기록한다.
+
+    script가 있으면 beta.messages.create가 호출마다 다음 응답을 차례로 돌려준다(에이전트 루프용).
+    """
 
     def __init__(self, text: str = "", stop_reason: str = "end_turn", *, classify_text: str = "academic",
-                 classify_stop: str = "end_turn"):
+                 classify_stop: str = "end_turn", script: Sequence[SimpleNamespace] | None = None):
+        self.script = list(script) if script is not None else None
         self.calls: list[dict] = []
         self.classify_calls: list[dict] = []
         self.text = text
@@ -78,7 +95,10 @@ class FakeLLM:
         self.messages = SimpleNamespace(create=self._classify)
 
     def _create(self, **kwargs):
-        self.calls.append(kwargs)
+        # 루프가 같은 messages 리스트에 계속 덧붙이므로 호출 시점 상태를 복사해 둔다
+        self.calls.append({**kwargs, "messages": list(kwargs.get("messages", []))})
+        if self.script is not None:
+            return self.script.pop(0)
         content = [SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=self.text)]
         return SimpleNamespace(stop_reason=self.stop_reason, content=content if self.stop_reason != "refusal" else [])
 
