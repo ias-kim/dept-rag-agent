@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { ask, clearToken, me } from './api'
 import { noticeLabels } from './notices'
 import { EXAMPLE_QUESTIONS, QUESTION_MAX_CHARS } from './questions'
@@ -8,14 +8,23 @@ const fileName = (path) => path.split('/').pop()
 
 // 서버가 남기는 [n]은 검증된 인용뿐이다(자료 원문의 [1]은 서버가 전각 ［1］로 바꿔 둔다) — 그래서 반각 [n]만 배지로 바꾼다
 const CITATION_RE = /\[(\d+)\]/g
+// 모델이 쓰는 **굵게**만 <strong>으로 바꾼다. 답변은 자료 원문을 옮긴 모델 출력이라 HTML로 넣지 않는다(XSS).
+// 짝이 맞지 않는 **는 글자 그대로 둔다
+const BOLD_RE = /\*\*(.+?)\*\*/g
+
+function withCitations(text, keyPrefix) {
+  return text.split(CITATION_RE).map((part, i) => (i % 2 === 1 // 홀수 칸이 인용 번호
+    ? <span key={`${keyPrefix}-${i}`} className="cite"><span className="sr-only">출처 </span>{part}</span>
+    : part))
+}
 
 function AnswerText({ text }) {
-  const parts = text.split(CITATION_RE) // 홀수 칸이 인용 번호
+  const parts = text.split(BOLD_RE) // 홀수 칸이 굵은 글씨 — 그 안의 [n]도 배지로 바꾼다
   return (
     <p className="answer-text">
       {parts.map((part, i) => (i % 2 === 1
-        ? <span key={i} className="cite"><span className="sr-only">출처 </span>{part}</span>
-        : part))}
+        ? <strong key={i}>{withCitations(part, i)}</strong>
+        : <Fragment key={i}>{withCitations(part, i)}</Fragment>))}
     </p>
   )
 }

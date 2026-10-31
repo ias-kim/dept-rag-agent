@@ -187,6 +187,28 @@ test('citation markers become numbered badges', async () => {
   expect(article.querySelector('.answer-text').textContent).not.toContain('[')
 })
 
+test('**bold** in the answer renders as strong text, not asterisks', async () => {
+  ask.mockResolvedValue({ ...full, answer: '- **Host**: 판단합니다 [1]\n- **Server [1]** 기능을 줍니다' })
+  const { user } = setup()
+  await submit(user)
+  const text = (await screen.findByRole('article')).querySelector('.answer-text')
+  const strongs = [...text.querySelectorAll('strong')]
+  expect(strongs.map((s) => s.textContent)).toEqual(['Host', 'Server 출처 1'])
+  // 굵은 글씨 안의 인용도 배지가 되어야 출처 번호가 사라지지 않는다
+  expect(strongs[1].querySelector('.cite')).toHaveTextContent('1')
+  expect(text.querySelectorAll('.cite')).toHaveLength(2)
+  expect(text.textContent).not.toContain('**')
+})
+
+test('unmatched ** stays as literal text', async () => {
+  ask.mockResolvedValue({ ...full, answer: '2**3은 8입니다 [1].' })
+  const { user } = setup()
+  await submit(user)
+  const text = (await screen.findByRole('article')).querySelector('.answer-text')
+  expect(text.querySelector('strong')).toBeNull()
+  expect(text.textContent).toContain('2**3은 8입니다')
+})
+
 test('enrollment notice is not repeated when the answer itself says so', async () => {
   // 수강생 전용 질문에 게스트가 받는 답은 본문이 이미 같은 안내다 — 출처 없이 같은 말이 두 번 보인다
   ask.mockResolvedValue({ answer: '전공 강의자료는 해당 과목 수강생만 검색할 수 있습니다.', sources: [], intent: 'major',
