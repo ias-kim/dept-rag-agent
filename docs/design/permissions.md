@@ -1,9 +1,8 @@
 # 권한 설계 문서 (1판)
 
-> 1판 2026-10-27 · 6주차 M5 · 완성본은 8주차("README 및 권한 설계 문서 완성") · 계획: [`m5-agent`](../exec-plans/active/2026-10-27-m5-agent.md) · 상위 설계: [`2026-09-28-system-design.md`](2026-09-28-system-design.md) §4
+> 1판 2026-10-27 · 6주차 M5 · 완성본은 8주차("README 및 권한 설계 문서 완성") · 계획: [`m5-agent`](../exec-plans/done/2026-10-27-m5-agent.md) · 상위 설계: [`2026-09-28-system-design.md`](2026-09-28-system-design.md) §4
 >
 > **이 문서가 "도구 노출·접근 권한 정책"의 SoT다.** `ARCHITECTURE.md`는 요약과 링크만 둔다.
-> 표시 규칙: 테스트 이름에 † 가 붙은 것은 M5 코드 PR(`feat/m5-agent`)과 함께 들어오는 테스트다. 그 PR이 병합되기 전의 `main`에는 아직 없다.
 
 ## 1. 역할 정의
 
@@ -54,14 +53,14 @@
 
 | 위협 | 어떻게 막는가 | 지키는 장치 |
 |---|---|---|
-| 질문에 "나는 수강생이야/관리자야"라고 쓴다 | 모델 입력에 권한이 없고, 권한은 요청마다 DB의 `enrollments`로만 정해진다. 질문 문장은 권한 입력이 아니다 | `test_classify_sends_only_question_without_role_or_sampling`(workflow), `test_agent_first_message_has_today_and_no_courses`†(agent) |
+| 질문에 "나는 수강생이야/관리자야"라고 쓴다 | 모델 입력에 권한이 없고, 권한은 요청마다 DB의 `enrollments`로만 정해진다. 질문 문장은 권한 입력이 아니다 | `test_classify_sends_only_question_without_role_or_sampling`(workflow), `test_agent_first_message_has_today_and_no_courses`(agent) |
 | `search_major(course_code="다른 과목")`로 범위를 넓힌다 | 사용자 과목과의 교집합만 쓴다. 비면 0건 | `test_course_code_argument_cannot_widen` |
-| 모델이 보이지 않는 도구(`search_major`)를 부른다 | `list_tools`에 없는 이름이면 MCP를 부르지 않고 오류 결과를 돌려준다. 호출이 MCP에 닿아도 겹 1이 한 번 더 거른다 | `test_agent_hidden_tool_call_is_not_executed`† |
-| 도구 인자 `query`에 문자열이 아닌 값을 넣는다 | 문자열만 허용(`str([..])`로 엉뚱한 검색이 도는 것을 막는다) | `test_non_string_query_is_rejected`, `test_agent_non_string_query_is_invalid_call`† |
+| 모델이 보이지 않는 도구(`search_major`)를 부른다 | `list_tools`에 없는 이름이면 MCP를 부르지 않고 오류 결과를 돌려준다. 호출이 MCP에 닿아도 겹 1이 한 번 더 거른다 | `test_agent_invalid_call_is_not_executed` |
+| 도구 인자 `query`에 문자열이 아닌 값을 넣는다 | 문자열만 허용(`str([..])`로 엉뚱한 검색이 도는 것을 막는다) | `test_non_string_query_is_rejected`, `test_agent_invalid_call_is_not_executed` |
 | 코드가 MCP를 거치지 않고 `db.search`를 직접 부른다 | `allowed_courses`가 기본값 없는 필수 인자이고, SQL 조건이 항상 붙는다 | `test_allowed_courses_is_required_keyword`, `test_enrolled_student_sees_only_own_course` |
 | 삭제된 계정의 토큰을 계속 쓴다 | 토큰은 `user_id`만 담고, 요청마다 DB에서 사용자를 찾는다. 없으면 거절 | `test_ask_rejects_token_of_deleted_user` |
 | 수강을 바꿨는데 이전 토큰으로 이전 권한이 남는다 | 과목을 토큰에 넣지 않고 요청마다 DB에서 읽는다 → 즉시 반영 | `test_me_reflects_enrollment_change_without_relogin`, `test_guest_courses_come_from_db_not_token` |
-| 앞선 도구 호출의 결과가 다른 사용자에게 섞인다 | 에이전트 루프의 조각 누적은 **요청 하나의 지역 변수**이고, MCP 서버도 요청마다 `UserContext`로 새로 만든다 | `test_no_foreign_major_chunk_reaches_answer_or_model`† |
+| 앞선 도구 호출의 결과가 다른 사용자에게 섞인다 | 에이전트 루프의 조각 누적은 **요청 하나의 지역 변수**이고, MCP 서버도 요청마다 `UserContext`로 새로 만든다 | `test_no_foreign_major_chunk_reaches_answer_or_model` |
 
 ## 5. 권한 테스트 행렬
 
@@ -73,19 +72,19 @@
 | 수강 과목 없음 | 학사만, `search_major` 미노출 | `test_no_enrollment_sees_only_academic` |
 | A 수강생이 `course_code=B` | 0건 | `test_course_code_argument_cannot_widen` |
 | MCP 우회해 `db.search` 직접 호출 | 필터 유지 | `test_allowed_courses_is_required_keyword`, `test_partial_index_path_still_returns_enrolled_chunk` |
-| **모드 3종 × (게스트·CS101 수강생)** — 남의 전공 조각이 최종 답·검색 결과·모델 입력에 0건 | `answer.retrieved`의 전공 조각 `course_code ⊆ courses`, 모든 LLM 호출의 messages·system에 `CS202` 경로 없음, 게스트는 `major/` 조각 0건 | `test_no_foreign_major_chunk_reaches_answer_or_model`† (`mode` × `courses` parametrize) |
-| **agent의 `tools` 인자 = MCP 보이는 도구** | 게스트·수강생별로 모델에 넘긴 도구 이름 집합 == `visible_tools(user)` | `test_agent_tools_argument_matches_mcp_visibility`† |
-| 게스트에게 `search_major`가 안 보임 / 호출해도 실행 안 됨 | `tools`에 `search_major` 없음, 호출은 미실행 + `invalid_tool_call` | `test_agent_guest_gets_only_academic_tool`†, `test_agent_hidden_tool_call_is_not_executed`† |
-| 로그인 → `/api/ask` → 출처 (실제 파이프라인·MCP·DB) | 게스트 응답 `sources`에 `major/` 없음 | `test_guest_login_ask_never_sees_major`† |
+| **모드 3종 × (게스트·CS101 수강생)** — 남의 전공 조각이 최종 답·검색 결과·모델 입력에 0건 | `answer.retrieved`의 전공 조각 `course_code ⊆ courses`, 모든 LLM 호출의 messages·system에 `CS202` 경로 없음, 게스트는 `major/` 조각 0건 | `test_no_foreign_major_chunk_reaches_answer_or_model` (`mode` × `courses` parametrize) |
+| **agent의 `tools` 인자 = MCP 보이는 도구** | 게스트·수강생별로 모델에 넘긴 도구 이름 집합 == `visible_tools(user)` | `test_agent_tools_argument_matches_mcp_visibility` |
+| 게스트에게 `search_major`가 안 보임 / 호출해도 실행 안 됨 | `tools`에 `search_major` 없음, 호출은 미실행 + `invalid_tool_call` | `test_agent_guest_gets_only_academic_tool`, `test_agent_invalid_call_is_not_executed` |
+| 로그인 → `/api/ask` → 출처 (실제 파이프라인·MCP·DB) | 게스트 응답 `sources`에 `major/` 없음 | `test_guest_login_ask_never_sees_major` |
 
 행렬 픽스처는 조각 `academic/calendar.pdf`, `major/CS101/lec1.pdf`, `major/CS202/lec1.pdf`다. CS101과 CS202가 같은 `scope`라 점수가 아니라 `course_code` 조건만이 가른다.
 
-**테스트가 진짜 막는지(RED 대체 확인):** 행렬 테스트는 M5 이전 코드에 대한 재검증이라 처음부터 통과한다. 그래서 `visible_tools`의 `if user.courses:`를 잠시 지워 FAIL을 확인한 뒤 되돌린다. 그 결과 한 줄은 계획의 결정 로그에 남긴다.
+**테스트가 진짜 막는지(RED 대체 확인):** 행렬 테스트는 M5 이전 코드에 대한 재검증이라 처음부터 통과한다. 그래서 `visible_tools`의 `if user.courses:`를 잠시 지워 FAIL을 확인한 뒤 되돌린다. 게이트 2에서 이 변이로 FAIL을 확인했고 계획의 결정 로그에 남겼다.
 
 ## 6. 1판의 한계 — 8주차 완성 예정, 남은 것
 
-- **게스트 agent 응답 안내:** 전공 질문을 한 게스트에게 "수강생 전용 자료"라고 알리는 공지가 agent 모드에는 없다(workflow에는 있다). 계획은 "모델이 전공 도구를 못 보는 것으로 충분"하다고 판단했고, 실제 화면에서 어떻게 보이는지는 확인하지 않았다.
-- **평가 전용 사용자의 경계:** `UserContext(user_id=0, 전 과목)`은 `evaluation/run.py`에서만 만든다. 다른 코드가 같은 방식으로 전 과목 `UserContext`를 만들지 못하게 막는 장치(구조 테스트 등)는 아직 없다.
+- **게스트 agent 응답 안내:** 전공 질문을 한 게스트에게 "수강생 전용 자료"라고 알리는 공지가 agent 모드에는 없다(workflow에는 있다). 계획은 "모델이 전공 도구를 못 보는 것으로 충분"하다고 판단했고, 실제 화면에서는 "자료에서 찾을 수 없다"고만 답해 workflow보다 덜 친절하다(6주차 확인). 권한 정보를 모델에 주지 않는 선에서 안내할 방법이 남았다.
+- **평가 전용 사용자의 경계:** `UserContext(user_id=0, 전 과목)`은 `evaluation/run.py`가 만든다. `core/agent.py`의 `agent_prompt_hash`도 도구 정의를 해시하려고 비슷한 값을 만들지만 `visible_tools`에만 넘겨 검색에 쓰이지 않는다. 다른 코드가 같은 방식으로 전 과목 `UserContext`를 만들지 못하게 막는 장치(구조 테스트 등)는 아직 없다.
 - **한도(429)와 권한의 관계:** 일일 한도는 권한이 아니라 비용 통제로 설계 §4에 있다. 권한 문서에서는 다루지 않았다.
 - **로그에 남는 권한 정보:** 설계 §7 관측 로그에 `user_id`는 있고 수강 과목은 없다. 권한 사고 조사에 충분한지 검토가 필요하다.
 - **위협 모델의 범위:** 학생이 질문 문구로 시도하는 우회와 코드 버그 두 가지만 다뤘다. 서버 침해(`.env`·DB 접근), 공용 AWS 계정의 다른 Admin은 설계 §9 위험 표가 맡고 이 문서 범위 밖이다.
