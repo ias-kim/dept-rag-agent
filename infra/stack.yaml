@@ -1,0 +1,279 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  dept-rag-agent single-EC2 deployment for a shared school account. Dedicated VPC with one public
+  subnet and no NAT to keep cost low; the app, DB and Caddy all run as containers on one instance.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+  com.aws.cloudformation.Context:
+    arch: internet -> Caddy(443) -> app(8000) -> db(5432), all containers on 1 EC2
+    must:
+      - shared account -> every resource tagged Project/Owner; stack delete removes only this project
+      - secrets stay in server .env (chmod 600), never in this public template or stack parameters
+    ref: docs/dev-notes/deploy.md
+
+Parameters:
+  AdminCidr:
+    Type: String
+    AllowedPattern: '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/32$'
+    Description: The single IP allowed to reach SSH, as x.x.x.x/32. Passed at deploy time because this repo is public.
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Existing key pair for SSH.
+  ImageId:
+    Type: AWS::EC2::Image::Id
+    Description: Ubuntu 24.04 amd64 AMI, pinned on purpose. See the instance context.
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.small, t3.medium]
+    Description: Image build needs at least 2 GiB of memory plus swap.
+
+Rules:
+  SeoulOnly:
+    Assertions:
+      - Assert: !Equals [!Ref "AWS::Region", ap-northeast-2]
+        AssertDescription: Deploy to ap-northeast-2. The CLI default on this machine points elsewhere.
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.40.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-vpc" }
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-igw" }
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: public IP at launch lets cloud-init reach apt before the EIP attaches
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.40.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-public" }
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-public" }
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: public web service, so 80/443 are open by design; 80 only redirects and answers ACME
+        must:
+          - never open 5432 or 8000; Caddy is the only entrance, or HTTPS and login limits are bypassed
+          - keep 22 on AdminCidr only
+    Properties:
+      GroupDescription: Public web through Caddy, SSH from the admin IP only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: !Ref AdminCidr }
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-web" }
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  DataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: >-
+          source PDFs and DB dumps. Delete, not Retain, so stack delete cleans the shared account;
+          a non-empty bucket makes the delete fail, so data is never removed silently
+        must:
+          - keep all public access blocks; contents include course material
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      VersioningConfiguration: { Status: Enabled }
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-versions
+            Status: Enabled
+            NoncurrentVersionExpiration: { NoncurrentDays: 30 }
+      Tags:
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  DataBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DataBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt DataBucket.Arn
+              - !Sub "${DataBucket.Arn}/*"
+            Condition:
+              Bool: { "aws:SecureTransport": "false" }
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: no long-lived keys on the server. SSM is the way back in when the admin IP changes
+        must:
+          - S3 access stays limited to this stack's bucket; the account is shared
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      Policies:
+        - PolicyName: data-bucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt DataBucket.Arn
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub "${DataBucket.Arn}/*"
+      Tags:
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: DefaultRoute
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: t3.small plus 2 GiB swap, because the frontend build runs on the server
+        must:
+          - ImageId stays a pinned parameter; a new AMI replaces the instance and loses the DB volume
+          - hop limit 1, so containers cannot read the instance role credentials
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref WebSecurityGroup
+      MetadataOptions:
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 20
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euxo pipefail
+          fallocate -l 2G /swapfile
+          chmod 600 /swapfile
+          mkswap /swapfile
+          swapon /swapfile
+          echo '/swapfile none swap sw 0 0' >> /etc/fstab
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y docker.io docker-compose-v2
+          systemctl enable --now docker
+          usermod -aG docker ubuntu
+          install -d -o ubuntu -g ubuntu /home/ubuntu/dept-rag
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-app" }
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: fixed address, because the domain is derived from it
+    Properties:
+      Domain: vpc
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-eip" }
+        - { Key: Project, Value: dept-rag-agent }
+        - { Key: Owner, Value: Seonggwan }
+
+  ElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt ElasticIp.AllocationId
+      InstanceId: !Ref Instance
+
+Outputs:
+  PublicIp:
+    Value: !Ref ElasticIp
+  InstanceId:
+    Value: !Ref Instance
+  BucketName:
+    Value: !Ref DataBucket
