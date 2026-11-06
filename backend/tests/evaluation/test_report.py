@@ -118,3 +118,15 @@ def test_report_shows_routing_loss_count(tmp_path):
     row = next(line for line in build_report(tmp_path).splitlines() if line.startswith("| 2026-10-14-router-v2-abc"))
     cells = [c.strip() for c in row.strip("|").split("|")]
     assert cells[7] == "1"  # A02: 오분류 + 근거 못 찾음. N01은 none 문항이라 제외
+
+
+def test_agent_run_shows_agent_prompt_hash_and_average_tool_calls(tmp_path):
+    records = [dict(r, tools_called=t) for r, t in zip(RECORDS, (["a"], ["a", "b"], []), strict=True)]
+    make_run(tmp_path, "2026-10-31-agent-v1-abc", records,
+             {"label": "agent-v1", "mode": "agent", "agent_prompt_hash": "ag1", "today": "2026-10-31"})
+    make_run(tmp_path, "2026-10-31-router-v3-abc", RECORDS, {"label": "router-v3", "mode": "workflow"})
+    lines = build_report(tmp_path).splitlines()
+    agent = [c.strip() for c in next(x for x in lines if x.startswith("| 2026-10-31-agent")).strip("|").split("|")]
+    router = [c.strip() for c in next(x for x in lines if x.startswith("| 2026-10-31-router")).strip("|").split("|")]
+    assert agent[-4:-2] == ["1.0", "ag1"]  # 평균 도구 호출, agent 프롬프트 (측정일·도구 오류 앞)
+    assert router[-4:-2] == ["—", "—"]

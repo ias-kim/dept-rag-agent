@@ -45,6 +45,7 @@ class Answer:
     retrieved: list[ChunkHit] = field(default_factory=list)
     intent: str | None = None  # workflow 모드의 분류 결과. baseline이면 None
     intent_valid: bool | None = None  # False = 분류 형식 오류로 both 대체 → 평가에서 오답
+    tools_called: list[str] = field(default_factory=list)  # agent 모드에서 실제 실행된 도구(순서대로)
 
 
 def system_prompt() -> str:
@@ -59,13 +60,18 @@ def make_llm(settings: Settings) -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.anthropic_api_key or None)
 
 
-def render_context(question: str, hits: Sequence[ChunkHit], today: date | None = None) -> str:
-    """today가 없으면 모델은 지난 공지(마감·휴강)를 아직 유효한 것처럼 안내한다."""
+def render_chunks(hits: Sequence[ChunkHit]) -> str:
+    """조각마다 [C<id>] 라벨을 붙인다. 생성·에이전트 도구 결과가 같은 표기를 써야 verify_citations가 둘 다 검증한다."""
     blocks = []
     for h in hits:
         where = f"{h.source} p.{h.page}" + (f" {h.section}" if h.section else "")
         blocks.append(f"[C{h.chunk_id}] ({where})\n{h.text}")
-    context = "<자료>\n" + "\n\n".join(blocks) + "\n</자료>\n\n질문: " + question
+    return "\n\n".join(blocks)
+
+
+def render_context(question: str, hits: Sequence[ChunkHit], today: date | None = None) -> str:
+    """today가 없으면 모델은 지난 공지(마감·휴강)를 아직 유효한 것처럼 안내한다."""
+    context = "<자료>\n" + render_chunks(hits) + "\n</자료>\n\n질문: " + question
     return f"오늘 날짜: {today.isoformat()}\n\n{context}" if today else context
 
 

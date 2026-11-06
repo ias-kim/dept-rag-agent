@@ -105,3 +105,10 @@ def test_routing_loss_counts_only_misroutes_that_lost_the_evidence():
     assert routing_loss({"intent_ok": False, "recall_at_k": None}) is False   # none 문항: 근거 개념 없음
     assert routing_loss({"intent_ok": True, "recall_at_k": False}) is False   # 검색 자체의 실패 (라우터 무관)
     assert routing_loss({"intent_ok": None, "recall_at_k": False}) is None    # baseline 실행
+
+
+def test_recall_at_k_counts_only_top_k_by_score():
+    # agent는 도구 호출마다 조각이 누적돼 k개를 넘는다. 자르지 않으면 후보가 많다는 이유만으로 recall이 오른다
+    hits = [make_hit(1, "academic/b.pdf", 2, score=0.9), make_hit(2, "academic/a.pdf", 2, score=0.5)]
+    assert recall_at_k(ITEM, hits, k=1) is False
+    assert recall_at_k(ITEM, list(reversed(hits)), k=2) is True

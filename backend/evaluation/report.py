@@ -56,6 +56,10 @@ def summarize(meta: dict, records: list[dict], grading: dict[str, bool | None]) 
         "tool_errors": sum(r["tool_errors"] for r in records) if all("tool_errors" in r for r in records) else None,
         "graded": sum(g is not None for g in graded),
         "latency_p50_ms": round(statistics.median(r["latency_ms"] for r in records)) if records else None,
+        # agent 실행만: 같은 에이전트 프롬프트·도구 정의로 잰 실행끼리만 비교해야 한다
+        "avg_tool_calls": (statistics.mean(len(r.get("tools_called", [])) for r in records)
+                           if meta.get("mode") == "agent" and records else None),
+        "agent_prompt_hash": meta.get("agent_prompt_hash") if meta.get("mode") == "agent" else None,
     }
 
 
@@ -65,6 +69,10 @@ def _count(values) -> int | None:
     return sum(known) if known else None
 
 
+def _avg(value: float | None) -> str:
+    return "—" if value is None else f"{value:.1f}"
+
+
 def _pct(value: float | None) -> str:
     return "—" if value is None else f"{value * 100:.1f}%"
 
@@ -72,14 +80,16 @@ def _pct(value: float | None) -> str:
 def render(rows: list[dict]) -> str:
     lines = [HEADER, "", "# 평가 비교표", "",
              ("| 실행 | 라벨 | 모드 | 프롬프트 | 문항 | 답변 정확도 (채점 수) | 의도 정확도 | 라우팅 손실 | recall@k | 출처 일치 "
-              "| none 처리 | 인용 정상 | 응답 p50 | 측정일 | 도구 오류 |"),
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+              "| none 처리 | 인용 정상 | 응답 p50 | 평균 도구 호출 | agent 프롬프트 | 측정일 | 도구 오류 |"),
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         lines.append(f"| {r['name']} | {r['label']} | {r['mode']} | {r['prompt_hash']} | {r['n']} | "
                      f"{_pct(r['answer_accuracy'])} ({r['graded']}) | {_pct(r['intent_accuracy'])} | "
                      f"{'—' if r['routing_loss'] is None else r['routing_loss']} | {_pct(r['recall_at_k'])} | "
                      f"{_pct(r['source_match'])} | {_pct(r['none_handled'])} | {_pct(r['citation_ok'])} | "
-                     f"{'—' if r['latency_p50_ms'] is None else str(r['latency_p50_ms']) + 'ms'} | {r['today']} | "
+                     f"{'—' if r['latency_p50_ms'] is None else str(r['latency_p50_ms']) + 'ms'} | "
+                     f"{_avg(r['avg_tool_calls'])} | "
+                     f"{r['agent_prompt_hash'] or '—'} | {r['today']} | "
                      f"{'—' if r['tool_errors'] is None else r['tool_errors']} |")
     return "\n".join(lines) + "\n"
 

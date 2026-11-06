@@ -13,15 +13,17 @@ import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
 from datetime import date, datetime
+from functools import partial
 from pathlib import Path
 
 import anyio
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.agent import agent_prompt_hash
 from app.core.answer import Answer, make_llm, prompt_hash
 from app.core.clock import seoul_today
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.embeddings import OpenAIEmbedder
 from app.core.pipeline import MODES, PipelineDeps, answer_question
 from app.core.router import classify_prompt_hash
@@ -69,7 +71,7 @@ def require_frozen(questions: Path, frozen: Path) -> None:
     check_frozen(questions, frozen)
 
 
-def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
+def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int, *, k: int | None = None) -> dict:
     return {
         "id": item.id,
         "intent": item.intent,
@@ -80,7 +82,7 @@ def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
         "notices": list(answer.notices),
         "citation_ok": answer.citation_ok,
         "latency_ms": latency_ms,
-        "recall_at_k": recall_at_k(item, answer.retrieved),
+        "recall_at_k": recall_at_k(item, answer.retrieved, k),
         "source_match": source_match(item, answer.sources),
         "none_handled": none_handled(item, answer),
         "key_points": list(item.key_points),
@@ -90,16 +92,18 @@ def evaluate_item(item: EvalItem, answer: Answer, latency_ms: int) -> dict:
         "intent_ok": intent_ok(item, answer),
         # 도구 장애는 답변을 막지 않고 공지로만 남는다 — 세어 두지 않으면 recall 하락이 장애 때문인지 안 보인다
         "tool_errors": count_tool_errors(answer),
+        # agent 모드에서 모델이 실제로 부른 도구. 7주차 workflow 대 agent 비교(도구 선택·비용)의 원자료다
+        "tools_called": list(answer.tools_called),
     }
 
 
 async def run_items(items: Sequence[EvalItem], answer_fn: Callable[[str], Awaitable[Answer]],
-                    clock: Callable[[], float] = time.perf_counter) -> list[dict]:
+                    clock: Callable[[], float] = time.perf_counter, *, k: int | None = None) -> list[dict]:
     records = []
     for item in items:
         started = clock()
         answer = await answer_fn(item.question)
-        records.append(evaluate_item(item, answer, round((clock() - started) * 1000)))
+        records.append(evaluate_item(item, answer, round((clock() - started) * 1000), k=k))
     return records
 
 
@@ -122,6 +126,17 @@ def write_run(records: list[dict], meta: dict, out_dir: Path, name: str) -> tupl
                              "key_points": " / ".join(r["key_points"]), "key_points_ok": "",
                              "no_hallucination": "", "note": ""})
     return run_path, grading_path
+
+
+def run_meta(label: str, mode: str, commit: str, settings: Settings, *, n: int) -> dict:
+    return {"label": label, "commit": commit, "eval_set_sha256": sha256_of(QUESTIONS), "prompt_hash": prompt_hash(),
+            "model": settings.generation_model, "effort": settings.generation_effort,
+            "k": settings.search_k, "min_score": settings.search_min_score, "n": n,
+            "mode": mode, "classify_model": settings.classify_model, "classify_prompt_hash": classify_prompt_hash(),
+            # agent 설정은 모든 모드에 남긴다 — 빠진 실행이 섞이면 어느 프롬프트·상한으로 잰 agent인지 알 수 없다
+            "agent_prompt_hash": agent_prompt_hash(), "agent_max_tool_calls": settings.agent_max_tool_calls,
+            # 생성 입력에 '오늘 날짜'가 들어가므로, 다른 날 잰 실행끼리는 마감 관련 답이 달라질 수 있다
+            "today": seoul_today().isoformat()}
 
 
 def _commit() -> str:
@@ -147,17 +162,14 @@ def main(argv: list[str] | None = None) -> None:
         courses = frozenset(c for c in session.scalars(select(Document.course_code).distinct()) if c)
         deps = PipelineDeps(session=session, embed_query=lambda q: embedder.embed([q])[0], llm=llm, settings=settings)
         user = UserContext(user_id=0, courses=courses)
-        records = anyio.run(run_items, items, lambda q: answer_question(q, user, deps, mode=args.mode))
-    meta = {"label": args.label, "commit": commit, "eval_set_sha256": sha256_of(QUESTIONS), "prompt_hash": prompt_hash(),
-            "model": settings.generation_model, "effort": settings.generation_effort,
-            "k": settings.search_k, "min_score": settings.search_min_score, "n": len(records),
-            "mode": args.mode, "classify_model": settings.classify_model, "classify_prompt_hash": classify_prompt_hash(),
-            # 생성 입력에 '오늘 날짜'가 들어가므로, 다른 날 잰 실행끼리는 마감 관련 답이 달라질 수 있다
-            "today": seoul_today().isoformat()}
+        records = anyio.run(partial(run_items, k=settings.search_k), items,
+                            lambda q: answer_question(q, user, deps, mode=args.mode))
+    meta = run_meta(args.label, args.mode, commit, settings, n=len(records))
     _, grading_path = write_run(records, meta, REPO_ROOT / "eval", name)
     print(f"{name}: recall@k {rate(r['recall_at_k'] for r in records)}, "
           f"출처 일치 {rate(r['source_match'] for r in records)}, none {rate(r['none_handled'] for r in records)}, "
-          f"의도 {rate(r['intent_ok'] for r in records)}, 도구 오류 {sum(r['tool_errors'] for r in records)}건")
+          f"의도 {rate(r['intent_ok'] for r in records)}, 도구 오류 {sum(r['tool_errors'] for r in records)}건, "
+          f"평균 도구 호출 {sum(len(r['tools_called']) for r in records) / max(len(records), 1):.1f}회")
     print(f"채점 양식: {grading_path}  →  채점 후 make eval-report")
 
 

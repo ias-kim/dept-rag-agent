@@ -101,3 +101,53 @@ def test_require_frozen_needs_frozen_file(tmp_path):
 def test_evaluate_item_counts_tool_errors():
     answer = Answer("a", [], True, notices=["tool_error:search_major", "no_evidence"])
     assert evaluate_item(ITEM, answer, 1)["tool_errors"] == 1
+
+
+def test_evaluate_item_records_tools_called():
+    answer = Answer("a", [], True, tools_called=["search_academic", "search_major"])
+    rec = evaluate_item(ITEM, answer, 1)
+    assert rec["tools_called"] == ["search_academic", "search_major"]
+    assert rec["intent_ok"] is None  # agent는 분류기가 없다 — 의도 정확도에 섞이지 않는다
+
+
+def test_agent_mode_passes_argument_parsing(monkeypatch):
+    from evaluation import run
+
+    class Reached(Exception):
+        pass
+
+    def stop(*args, **kwargs):
+        raise Reached
+
+    monkeypatch.setattr(run, "prepare_run", stop)
+    with pytest.raises(Reached):
+        main(["--label", "x", "--mode", "agent"])
+
+
+def test_run_meta_records_agent_settings_for_every_mode():
+    from app.core.agent import agent_prompt_hash
+    from app.core.config import Settings
+    from evaluation.run import run_meta
+
+    meta = run_meta("router-v3", "workflow", "abc1234", Settings(_env_file=None, agent_max_tool_calls=4), n=36)
+    assert meta["agent_prompt_hash"] == agent_prompt_hash() and meta["agent_max_tool_calls"] == 4
+    assert meta["mode"] == "workflow" and meta["n"] == 36 and meta["commit"] == "abc1234"
+
+
+def test_evaluate_item_recall_uses_top_k_of_accumulated_agent_hits():
+    hits = [make_hit(1, "academic/b.pdf", 2, score=0.9), make_hit(2, "academic/a.pdf", 2, score=0.4)]
+    answer = Answer("a", [], True, retrieved=hits, tools_called=["search_academic", "search_academic"])
+    assert evaluate_item(ITEM, answer, 1, k=1)["recall_at_k"] is False
+    assert evaluate_item(ITEM, answer, 1, k=2)["recall_at_k"] is True
+
+
+def test_agent_prompt_hash_covers_tool_definitions(monkeypatch):
+    # 도구 설명도 모델의 도구 선택을 바꾼다 — 해시에 없으면 설명만 바꾼 실행이 같은 조건으로 보인다
+    from mcp import types
+
+    from app.core import agent
+
+    before = agent.agent_prompt_hash()
+    monkeypatch.setattr(agent, "visible_tools", lambda user: [
+        types.Tool(name="search_academic", description="바뀐 설명", inputSchema={"type": "object"})])
+    assert agent.agent_prompt_hash() != before

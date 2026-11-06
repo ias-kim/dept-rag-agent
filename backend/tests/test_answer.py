@@ -9,6 +9,7 @@ from app.core.answer import (
     Source,
     generate_answer,
     prompt_hash,
+    render_context,
     system_prompt,
 )
 from tests.fakes import FakeLLM, make_hit
@@ -131,3 +132,10 @@ def test_no_today_keeps_context_unchanged():
     llm = FakeLLM("답[C12].")
     generate_answer(llm, "q", [make_hit(12)], **OPTS)
     assert llm.calls[0]["messages"][0]["content"].startswith("<자료>")
+
+
+def test_render_context_unchanged_after_extracting_render_chunks():
+    hits = [make_hit(7, "academic/a.pdf", 2, "제3조"), make_hit(9, "major/CS101/b.pdf", 4)]
+    assert render_context("질문?", hits, date(2026, 9, 30)) == (
+        "오늘 날짜: 2026-09-30\n\n<자료>\n[C7] (academic/a.pdf p.2 제3조)\n조각 7 내용\n\n"
+        "[C9] (major/CS101/b.pdf p.4)\n조각 9 내용\n</자료>\n\n질문: 질문?")

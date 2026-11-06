@@ -2,6 +2,7 @@
 
 - baseline: 라우터 없이 권한 안에서 보이는 모든 검색 도구를 호출 (3주차 기준선)
 - workflow: 분류(LLM) → 처리 표(코드) → 표가 고른 도구만 호출 (4주차)
+- agent: 모델이 권한 필터된 도구를 골라 최대 agent_max_tool_calls회 호출 (6주차, app/core/agent.py)
 두 모드가 같은 함수를 지나야 라우터 효과를 같은 조건에서 비교할 수 있다.
 동기 Anthropic SDK 호출은 anyio.to_thread로 이벤트 루프 밖에서 부른다 — 루프 안에서 부르면 그동안 다른 요청이 멈춘다.
 """
@@ -12,8 +13,10 @@ from datetime import date
 from typing import Any
 
 import anyio
+from mcp.shared.exceptions import MCPError
 from sqlalchemy.orm import Session
 
+from app.core.agent import run_agent
 from app.core.answer import Answer, generate_answer
 from app.core.clock import seoul_today
 from app.core.config import Settings
@@ -22,7 +25,7 @@ from app.db.search import ChunkHit
 from app.mcp.connection import ToolError, connect, parse_hits
 from app.mcp.server import UserContext, build_server
 
-MODES = ("baseline", "workflow")
+MODES = ("baseline", "workflow", "agent")
 OUT_OF_SCOPE_TEXT = "학과 전공자료·학사 공지 범위 밖의 질문이라 답할 수 없습니다."
 MAJOR_ONLY_TEXT = "전공 강의자료는 해당 과목 수강생만 검색할 수 있습니다."
 
@@ -54,6 +57,8 @@ async def answer_question(question: str, user: UserContext, deps: PipelineDeps, 
         raise ValueError("질문이 비어 있습니다")
     if mode not in MODES:
         raise ValueError(f"mode는 {MODES} 중 하나: {mode!r}")
+    if mode == "agent":
+        return await _answer_with_agent(question, user, deps)
     s = deps.settings
     intent: str | None = None
     intent_valid: bool | None = None
@@ -92,8 +97,36 @@ async def answer_question(question: str, user: UserContext, deps: PipelineDeps, 
                 hits.extend(parse_hits(await client.call_tool(name, {"query": question})))
             except ToolError:
                 notices.append(f"tool_error:{name}")  # 도구 하나의 실패가 답변 전체를 막지 않게 한다
+            except MCPError:
+                # MCP 2.2는 도구 안 예외(DB 오류 등)를 isError가 아니라 MCPError로 던진다. 잡지 않으면 질문 전체가 500이 된다.
+                # 세션을 되돌려야 중단된 트랜잭션 때문에 다음 도구까지 실패하지 않는다
+                deps.session.rollback()
+                notices.append(f"tool_error:{name}")
     today = deps.today()
     answer = await anyio.to_thread.run_sync(
         lambda: generate_answer(deps.llm, question, merge_hits(hits, k=s.search_k), model=s.generation_model,
                                 effort=s.generation_effort, max_tokens=s.generation_max_tokens, today=today))
     return replace(answer, notices=notices + answer.notices, intent=intent, intent_valid=intent_valid)
+
+
+async def _answer_with_agent(question: str, user: UserContext, deps: PipelineDeps) -> Answer:
+    """agent는 모델이 검색어를 바꾸므로 질문을 미리 임베딩하지 않는다(낭비). 대신 도구 안 임베딩 예외를 기록했다가
+    on_tool_failure가 원래 예외로 다시 던진다 — workflow의 사전 임베딩과 같은 목적(장애를 "자료 없음"으로 삼키지 않기)."""
+    s = deps.settings
+    embed_errors: list[Exception] = []
+
+    def embed_watched(query: str) -> Sequence[float]:
+        try:
+            return deps.embed_query(query)
+        except Exception as e:
+            embed_errors.append(e)
+            raise
+
+    def on_tool_failure() -> None:
+        if embed_errors:
+            raise embed_errors[0]
+        deps.session.rollback()  # 중단된 트랜잭션을 풀어 모델의 재시도가 동작하게 한다
+
+    server = build_server(user, deps.session, embed_watched, k=s.search_k, min_score=s.search_min_score)
+    async with connect(server) as client:
+        return await run_agent(question, client, deps.llm, s, today=deps.today(), on_tool_failure=on_tool_failure)

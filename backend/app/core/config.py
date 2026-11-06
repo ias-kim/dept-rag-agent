@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     search_min_score: float = 0.0
     classify_model: str = "claude-haiku-4-5-20251001"
     classify_max_tokens: int = 16  # 라벨 한 단어만 받는다. 늘리면 설명이 붙어 형식 오류(→both)가 는다
-    router_mode: str = "workflow"  # "baseline" | "workflow" — app/core/pipeline.py MODES
+    router_mode: str = "workflow"  # "baseline" | "workflow" | "agent" — app/core/pipeline.py MODES
+    # agent 모드에서 실행할 tool_use 블록 수 상한(설계 §5). 바꾸면 평가 meta가 달라져 이전 agent 실행과 비교할 수 없다
+    agent_max_tool_calls: int = 4
     jwt_secret: str = ""  # 32자 이상. 비거나 짧으면 토큰 발급·검증을 모두 거부한다 (app/core/security.py)
     jwt_ttl_hours: int = 12
     default_daily_quota: int = 50
