@@ -47,6 +47,12 @@ jobs:
       - name: make check
         run: make check PY=python
 
+      - name: 운영 스택 검사 (cfn-lint)
+        run: pipx run cfn-lint infra/stack.yaml
+
+      - name: 이미지 빌드 검사
+        run: docker build -f docker/Dockerfile .
+
       - name: 위험 경로 변경 경고 (게이트 3 필요 여부)
         if: github.event_name == 'pull_request'
         run: |

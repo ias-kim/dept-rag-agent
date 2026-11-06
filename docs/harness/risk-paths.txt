@@ -5,6 +5,7 @@ backend/app/db/
 backend/migrations/
 backend/requirements.txt
 docker/
+infra/
 .github/
 .env.example
 docs/harness/risk-paths.txt
