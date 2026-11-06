@@ -200,6 +200,27 @@ test('**bold** in the answer renders as strong text, not asterisks', async () =>
   expect(text.textContent).not.toContain('**')
 })
 
+test.each([
+  ['def w(*args, **kwargs): return f(*args, **kwargs)'],
+  ['2**3 + 3**2'],
+])('paired ** that is not emphasis stays literal: %s', async (code) => {
+  // 짝만 맞으면 굵게로 바꾸면 ** 가 사라져 코드와 수식이 다른 내용으로 읽힌다
+  ask.mockResolvedValue({ ...full, answer: code })
+  const { user } = setup()
+  await submit(user)
+  const text = (await screen.findByRole('article')).querySelector('.answer-text')
+  expect(text.querySelector('strong')).toBeNull()
+  expect(text.textContent).toBe(code)
+})
+
+test('emphasis attached to Korean text is still bold', async () => {
+  ask.mockResolvedValue({ ...full, answer: '**굵게**입니다 [1]' })
+  const { user } = setup()
+  await submit(user)
+  const text = (await screen.findByRole('article')).querySelector('.answer-text')
+  expect(text.querySelector('strong')).toHaveTextContent('굵게')
+})
+
 test('unmatched ** stays as literal text', async () => {
   ask.mockResolvedValue({ ...full, answer: '2**3은 8입니다 [1].' })
   const { user } = setup()
