@@ -35,8 +35,13 @@ def services():
 
 
 @pytest.fixture(scope="module")
-def resources():
-    return yaml.load(STACK.read_text(encoding="utf-8"), Loader=_CfnLoader)["Resources"]
+def stack():
+    return yaml.load(STACK.read_text(encoding="utf-8"), Loader=_CfnLoader)
+
+
+@pytest.fixture(scope="module")
+def resources(stack):
+    return stack["Resources"]
 
 
 def _of_type(resources, type_name):
@@ -96,3 +101,10 @@ def test_bucket_blocks_public_access(resources):
     block = bucket["PublicAccessBlockConfiguration"]
     assert all(block[k] is True for k in
                ("BlockPublicAcls", "BlockPublicPolicy", "IgnorePublicAcls", "RestrictPublicBuckets"))
+
+
+def test_stack_refuses_a_region_other_than_the_one_stated_at_deploy(stack):
+    # 계정마다 쓸 수 있는 리전이 다르고 CLI 기본값은 믿을 수 없다 — 배포자가 적은 리전과 다르면 자원을 만들기 전에 멈춘다
+    assert "Default" not in stack["Parameters"]["DeployRegion"]
+    assertion = stack["Rules"]["DeployRegionMatches"]["Assertions"][0]["Assert"]
+    assert assertion == {"Equals": [{"Ref": "AWS::Region"}, {"Ref": "DeployRegion"}]}
