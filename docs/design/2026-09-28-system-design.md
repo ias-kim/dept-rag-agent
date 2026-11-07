@@ -32,7 +32,7 @@
 | 10 | 대화 맥락 | 단일 턴. 멀티턴은 7주차 이후 확장 |
 | 11 | 자료 갱신 | 해시 기반 폴더(→S3) 동기화, 멱등. 원본 PDF는 git에 올리지 않음 |
 | 12 | HTTPS | 무료 도메인(현재 `<IP>.sslip.io`, 계획은 DuckDNS — 2026-11-06 §8) + Caddy 자동 인증서 |
-| 13 | 인프라 | 학교 공용 AWS 계정(서울), CloudFormation 단일 템플릿: 전용 VPC·SG·EC2·EIP·S3·IAM 역할 |
+| 13 | 인프라 | AWS(시드니 리전), CloudFormation 단일 템플릿: 전용 VPC·SG·EC2·EIP·S3·IAM 역할 |
 
 ## 2. 요청 흐름
 
