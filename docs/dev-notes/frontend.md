@@ -18,6 +18,7 @@ App (토큰 있음?) ──▶ AskPage
    │   └ 401이면 바로 onLogout('expired') — 만료된 토큰으로 질문을 다 쓴 뒤에야 튕기지 않게. 그 외 실패는 배지·아이디만 숨기고 질문은 계속
    │ ask(question) ─▶ POST /api/ask (Bearer) ─▶ {answer, sources[{file,page,section}], intent, notices[]}
    │   ├─ answer      → 본문의 반각 [n]을 번호 배지로(숨김 글자 "출처 "를 넣어 스크린리더는 "출처 1"로 읽음) — 서버가 자료 원문의 [1]은 전각으로 바꿔 두므로 반각은 검증된 인용뿐
+   │   │               **굵게**는 <strong>으로(그 안의 [n]도 배지). HTML로 넣지 않는다. 양쪽 ** 가 글자에 붙고 영문·숫자 사이에 끼지 않을 때만 강조 — **kwargs·2**3은 글자 그대로
    │   ├─ sources     → <ol> 출처 목록 (번호 = 본문 [n]), 비면 "이 답변의 근거 자료" 제목째 생략
    │   ├─ notices     → noticeLabels → 안내 띠(role=status), 비면 생략. 수강 안내는 intent가 major일 때만 숨김(본문이 같은 말). both는 출처가 없어도 보여야 전공 자료가 빠진 것을 앎
    │   └─ intent      → 화면에 쓰지 않음 (baseline 모드에서는 null)

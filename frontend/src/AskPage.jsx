@@ -9,8 +9,9 @@ const fileName = (path) => path.split('/').pop()
 // 서버가 남기는 [n]은 검증된 인용뿐이다(자료 원문의 [1]은 서버가 전각 ［1］로 바꿔 둔다) — 그래서 반각 [n]만 배지로 바꾼다
 const CITATION_RE = /\[(\d+)\]/g
 // 모델이 쓰는 **굵게**만 <strong>으로 바꾼다. 답변은 자료 원문을 옮긴 모델 출력이라 HTML로 넣지 않는다(XSS).
-// 짝이 맞지 않는 **는 글자 그대로 둔다
-const BOLD_RE = /\*\*(.+?)\*\*/g
+// 양쪽 ** 가 글자에 붙고 영문·숫자 사이에 끼지 않을 때만 강조로 본다. 짝만 보면 **kwargs·2**3의 ** 가 사라져
+// 코드와 수식이 다른 내용으로 읽힌다. \w는 ASCII만 잡으므로 **굵게**입니다 처럼 한글에 붙은 강조는 그대로 굵게 된다
+const BOLD_RE = /(?<![\w*])\*\*(?=\S)(.+?)(?<=\S)\*\*(?![\w*])/g
 
 function withCitations(text, keyPrefix) {
   return text.split(CITATION_RE).map((part, i) => (i % 2 === 1 // 홀수 칸이 인용 번호
