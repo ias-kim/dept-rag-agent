@@ -1,0 +1,69 @@
+# 운영 구성. 불변 조건 검사: backend/tests/structural/test_deploy_config.py · 설명: docs/dev-notes/deploy.md
+# 실행: docker compose -f docker/docker-compose.prod.yml --env-file .env up -d --build --wait
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dept_rag
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+      POSTGRES_DB: dept_rag
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dept_rag"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - web
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://dept_rag:${DB_PASSWORD:?}@db:5432/dept_rag
+      # 이 주소의 X-Forwarded-For만 믿는다. 어긋나면 로그인 제한이 모든 사용자를 한 IP로 보거나 헤더 위조로 뚫린다
+      FORWARDED_ALLOW_IPS: 172.30.0.10
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - web
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?}
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    networks:
+      web:
+        ipv4_address: 172.30.0.10
+
+networks:
+  web:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  db-data:
+  # 인증서 보관. 지워지면 재발급을 반복하다 발급 한도에 걸린다
+  caddy-data:
