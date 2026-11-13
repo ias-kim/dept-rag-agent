@@ -167,7 +167,7 @@ WHERE scope = 'academic' OR (scope = 'major' AND course_code = ANY(:allowed_cour
 
 계획서 대비 조정: 배포를 5주차로 앞당김(7주차 문장은 여전히 충족), 3주차 기준선은 라우터 없이 측정.
 2026-10-20: M4를 M4a(화면·이미지)와 M4b(AWS 배포)로 분할 — 스파이크 S3(공용 계정 IAM 역할 생성) 미확인 상태에서 스택 템플릿을 쓰지 않는다. 5주차 계획서 문장은 M4a로 충족.
-2026-10-27: M5 착수 — agent 모드(도구 호출 4회 상한), 모드 3종 × 역할 권한 행렬, 로그인→`/api/ask`→출처 통합 테스트, 권한 설계 문서 **1판**([`permissions.md`](permissions.md)). 완성본은 계획서대로 8주차(M7). 완료 증거인 agent 모드 평가 실행(`agent-v1`)은 유료라 튜터가 따로 돌린다 — 계획: [`m5-agent`](../exec-plans/active/2026-10-27-m5-agent.md).
+2026-10-27: M5 착수 — agent 모드(도구 호출 4회 상한), 모드 3종 × 역할 권한 행렬, 로그인→`/api/ask`→출처 통합 테스트, 권한 설계 문서 **1판**([`permissions.md`](permissions.md)). 완성본은 계획서대로 8주차(M7). 완료 증거인 agent 모드 평가 실행(`agent-v1`)은 유료라 튜터가 따로 돌린다 — 계획: [`m5-agent`](../exec-plans/done/2026-10-27-m5-agent.md).
 
 2026-11-06: M4b 착수 — 스파이크 S3는 실제 스택 생성으로 확인. 도메인은 사람의 계정이 필요 없는 `sslip.io`로 시작(값 하나만 바꾸면 DuckDNS로 이동), 배포는 `git pull` 대신 `git archive`, SSH 외 복구 경로로 SSM 추가 — 계획: [`m4b-deploy`](../exec-plans/active/2026-11-06-m4b-deploy.md).
 

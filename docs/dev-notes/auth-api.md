@@ -52,7 +52,7 @@ POST /api/ask {question}   Authorization: Bearer <token>
 | 한도 증가는 `INSERT … ON CONFLICT … WHERE count < limit` 한 문장 | 읽고-비교하고-쓰면 동시 요청이 같은 값을 읽어 한도를 넘긴다 | `test_consume_stops_at_limit`, `test_concurrent_requests_cannot_exceed_limit` |
 | 0 한도는 코드에서 먼저 거부 | 첫 INSERT는 WHERE를 거치지 않아 0 한도 계정도 하루 1번 통과한다 | `test_zero_quota_never_consumes` |
 | 공급사 장애(연결 실패·시간 초과·5xx·429)일 때만 503과 한도 되돌림 | 장애로 답을 못 받은 학생이 한도를 잃는다. 반대로 공급사 4xx(잘못된 요청·인증)까지 되돌리면 생성에서 400이 나는 질문을 한도 소모 없이 반복해 분류 비용만 쌓을 수 있다 | `test_upstream_error_refunds_quota`, `test_provider_outage_becomes_upstream_error`, `test_provider_client_error_is_not_treated_as_outage` |
-| 질문 임베딩은 MCP 도구 호출 전에 계산 | 임베딩 장애가 도구 안에서 `tool_error`로 삼켜져 "자료 없음" 답이 나가고, 503이 아니라서 한도도 되돌려지지 않는다. (평가 실행은 이제 임베딩 장애에서 멈춘다 — 장애가 섞인 측정을 남기지 않는 쪽) | `test_embedding_failure_surfaces_instead_of_becoming_no_evidence` |
+| 질문 임베딩은 MCP 도구 호출 전에 계산 (baseline·workflow. agent는 `on_tool_failure`가 같은 역할 → `agent.md`) | 임베딩 장애가 도구 안에서 `tool_error`로 삼켜져 "자료 없음" 답이 나가고, 503이 아니라서 한도도 되돌려지지 않는다. (평가 실행은 이제 임베딩 장애에서 멈춘다 — 장애가 섞인 측정을 남기지 않는 쪽) | `test_embedding_failure_surfaces_instead_of_becoming_no_evidence` |
 | 비밀번호 옵션은 약어를 받지 않는다(`allow_abbrev=False`) | `--password`가 `--password-stdin`으로 해석돼 사용자가 비밀번호를 인자로 넘겼다고 착각한다 | `test_password_option_prefix_is_not_accepted_as_abbreviation` |
 | 비밀번호는 getpass·`--password-stdin`으로만 | argv에 넣으면 셸 기록·프로세스 목록에 남는다 | `test_password_cannot_be_passed_as_argument` |
 | `upsert_user`는 과목을 통째로 교체 | 빠진 과목의 `enrollments` 행이 남아 수강 취소 과목의 전공 자료가 계속 보인다 | `test_upsert_replaces_courses_and_password` |

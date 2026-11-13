@@ -44,7 +44,8 @@ question (str)
  ├─ connect(build_server(user)) → list_tools()  = 권한 겹 ① (보이는 도구)
  │     호출 도구 = plan.tools ∩ 보이는 도구     ← 표와 권한이 어긋나면 권한이 이긴다
  ├─ call_tool(name, {"query": question})       = 권한 겹 ② (SQL 조건)
- │     도구별 ToolError → notices에 "tool_error:<도구>", 나머지 도구로 계속
+ │     도구별 ToolError·MCPError → notices에 "tool_error:<도구>", 나머지 도구로 계속
+ │     (MCPError는 DB 세션을 되돌린다 — 안 하면 중단된 트랜잭션 때문에 다음 도구까지 실패)
  ├─ merge_hits(k=5)
  └─ generate_answer(..., today=seoul_today())  "오늘 날짜: YYYY-MM-DD" 앞에 붙임
      → Answer(text, sources, notices, intent, intent_valid)

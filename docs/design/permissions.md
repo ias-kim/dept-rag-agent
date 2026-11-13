@@ -80,7 +80,7 @@
 
 행렬 픽스처는 조각 `academic/calendar.pdf`, `major/CS101/lec1.pdf`, `major/CS202/lec1.pdf`다. CS101과 CS202가 같은 `scope`라 점수가 아니라 `course_code` 조건만이 가른다.
 
-**테스트가 진짜 막는지(RED 대체 확인):** 행렬 테스트는 M5 이전 코드에 대한 재검증이라 처음부터 통과한다. 그래서 `visible_tools`의 `if user.courses:`를 잠시 지워 FAIL을 확인한 뒤 되돌린다. 그 결과 한 줄은 계획의 결정 로그에 남긴다.
+**테스트가 진짜 막는지(RED 대체 확인):** 행렬 테스트는 M5 이전 코드에 대한 재검증이라 처음부터 통과한다. 그래서 `visible_tools`의 `if user.courses:`를 잠시 지워 FAIL을 확인한 뒤 되돌린다. 게이트 2에서 이 변이로 FAIL을 확인했고 계획의 결정 로그에 남겼다.
 
 ## 6. 배포 서버에서의 권한 (7주차 M4b)
 
