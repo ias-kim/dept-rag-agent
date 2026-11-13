@@ -1,6 +1,6 @@
 """API 의존성 — 세션, 인증 사용자, 답변 함수. 테스트는 app.dependency_overrides로 바꾼다."""
 
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Annotated
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.throttle import LoginThrottle
 from app.core.answer import Answer, make_llm
 from app.core.config import Settings, get_settings
+from app.core.conversation import Turn
 from app.core.embeddings import OpenAIEmbedder
 from app.core.pipeline import PipelineDeps, UpstreamError, answer_question
 from app.core.security import InvalidToken, decode_token, is_secret_configured
@@ -22,7 +23,7 @@ from app.db.accounts import get_user, user_courses
 from app.db.session import make_engine
 from app.mcp.server import UserContext
 
-AnswerFn = Callable[[str, UserContext, Session], Awaitable[Answer]]
+AnswerFn = Callable[[str, UserContext, Session, Sequence[Turn]], Awaitable[Answer]]
 _bearer = HTTPBearer(auto_error=False)
 UNAUTHORIZED = HTTPException(status.HTTP_401_UNAUTHORIZED, "로그인이 필요합니다", {"WWW-Authenticate": "Bearer"})
 # 키가 비었을 때 로그인 결과(401/500)가 비밀번호 정답 여부에 따라 갈리지 않도록, 인증 전에 같은 503으로 멈춘다
@@ -103,10 +104,10 @@ def _clients() -> tuple[OpenAIEmbedder, anthropic.Anthropic]:
 def get_answer_fn(settings: SettingsDep) -> AnswerFn:
     embedder, llm = _clients()
 
-    async def answer_fn(question: str, user: UserContext, session: Session) -> Answer:
+    async def answer_fn(question: str, user: UserContext, session: Session, history: Sequence[Turn] = ()) -> Answer:
         deps = PipelineDeps(session=session, embed_query=lambda q: embedder.embed([q])[0], llm=llm, settings=settings)
         try:
-            return await answer_question(question, user, deps, mode=settings.router_mode)
+            return await answer_question(question, user, deps, mode=settings.router_mode, history=history)
         except (anthropic.APIError, openai.APIError) as e:
             if is_provider_outage(e):
                 raise UpstreamError(type(e).__name__) from e

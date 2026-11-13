@@ -20,6 +20,7 @@ from app.core.agent import run_agent
 from app.core.answer import Answer, generate_answer
 from app.core.clock import seoul_today
 from app.core.config import Settings
+from app.core.conversation import Turn, condense_question
 from app.core.router import NEEDS_ENROLLMENT, classify, plan
 from app.db.search import ChunkHit
 from app.mcp.connection import ToolError, connect, parse_hits
@@ -51,12 +52,19 @@ def merge_hits(hits: Sequence[ChunkHit], *, k: int) -> list[ChunkHit]:
     return sorted(best.values(), key=lambda h: (-h.score, h.chunk_id))[:k]
 
 
-async def answer_question(question: str, user: UserContext, deps: PipelineDeps, *, mode: str = "baseline") -> Answer:
+async def answer_question(question: str, user: UserContext, deps: PipelineDeps, *, mode: str = "baseline",
+                          history: Sequence[Turn] = ()) -> Answer:
     question = question.strip()
     if not question:
         raise ValueError("질문이 비어 있습니다")
     if mode not in MODES:
         raise ValueError(f"mode는 {MODES} 중 하나: {mode!r}")
+    if history:
+        # 모드 분기 전에 한 번만 다시 쓴다 — 세 모드가 같은 독립 질문으로 분류·검색·생성해야 비교가 공정하다.
+        # 이력이 없으면 이 호출이 없다: 평가(단일 질문)의 호출 수·비용이 이전 실행과 같아야 비교할 수 있다
+        s = deps.settings
+        question = await anyio.to_thread.run_sync(lambda: condense_question(
+            deps.llm, question, history, model=s.classify_model, max_tokens=s.condense_max_tokens))
     if mode == "agent":
         return await _answer_with_agent(question, user, deps)
     s = deps.settings

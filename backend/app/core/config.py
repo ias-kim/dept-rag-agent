@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     search_min_score: float = 0.0
     classify_model: str = "claude-haiku-4-5-20251001"
     classify_max_tokens: int = 16  # 라벨 한 단어만 받는다. 늘리면 설명이 붙어 형식 오류(→both)가 는다
+    # 후속 질문 재작성(app/core/conversation.py)은 classify_model을 쓴다. 한 문장만 받으므로 짧게 둔다
+    condense_max_tokens: int = 200
     router_mode: str = "workflow"  # "baseline" | "workflow" | "agent" — app/core/pipeline.py MODES
     # agent 모드에서 실행할 tool_use 블록 수 상한(설계 §5). 바꾸면 평가 meta가 달라져 이전 agent 실행과 비교할 수 없다
     agent_max_tool_calls: int = 4

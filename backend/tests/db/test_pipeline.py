@@ -243,3 +243,48 @@ async def test_db_error_inside_tool_becomes_tool_error_not_500(session, monkeypa
     answer = await answer_question("q", user("CS101"), deps(session, FakeLLM("답[C2].")))
     assert "tool_error:search_academic" in answer.notices
     assert [h.source for h in answer.retrieved] == ["major/CS101/lec1.pdf"]
+
+
+# ── 이어지는 대화: 이력이 있으면 질문을 독립 질문으로 다시 써서 분류·검색·생성에 쓴다 ──
+
+FOLLOW_UP = "원격이랑 로컬은 뭐가 달라?"
+STANDALONE = "MCP 원격 서버와 로컬 서버는 무엇이 다른가?"
+
+
+def history():
+    from app.core.conversation import Turn
+    return (Turn("MCP에서 Host, Client, Server는 각각 무슨 역할이야?", "Host는 앱입니다 [1]."),)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", ["baseline", "workflow"])
+async def test_follow_up_is_searched_and_answered_as_standalone_question(session, mode):
+    seed_chunks(session, CORPUS)
+    embedded = []
+    llm = FakeLLM("답 [C1]", classify_text="both", condense_text=STANDALONE)
+    d = replace(deps(session, llm), embed_query=lambda q: embedded.append(q) or unit(0))
+    await answer_question(FOLLOW_UP, user("CS101"), d, mode=mode, history=history())
+    assert len(llm.condense_calls) == 1
+    assert embedded and set(embedded) == {STANDALONE}  # 짧은 후속 질문 그대로 검색하면 근거가 안 잡힌다
+    assert STANDALONE in llm.calls[-1]["messages"][0]["content"]
+    if mode == "workflow":
+        assert llm.classify_calls[0]["messages"][0]["content"] == STANDALONE
+
+
+@pytest.mark.anyio
+async def test_agent_receives_standalone_question(session):
+    from tests.fakes import text_reply
+    seed_chunks(session, CORPUS)
+    llm = FakeLLM(script=[text_reply("제공된 자료에서 답을 찾을 수 없습니다.")], condense_text=STANDALONE)
+    await answer_question(FOLLOW_UP, user("CS101"), deps(session, llm), mode="agent", history=history())
+    assert STANDALONE in llm.calls[0]["messages"][0]["content"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", ["baseline", "workflow"])
+async def test_no_history_means_no_rewrite_call(session, mode):
+    # 이력이 없을 때 호출 수가 늘면 평가(단일 질문)의 비용·조건이 이전 실행과 달라진다
+    seed_chunks(session, CORPUS)
+    llm = FakeLLM("답", classify_text="both", condense_text=STANDALONE)
+    await answer_question("스택이 뭐야?", user("CS101"), deps(session, llm), mode=mode)
+    assert llm.condense_calls == []
