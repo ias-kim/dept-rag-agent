@@ -29,6 +29,8 @@
 
 ## 3. 불변 조건과 실패 모드
 
+권한 관련 행(과목 좁히기·강의자료 목록·이력)의 SoT는 [`design/permissions.md`](../design/permissions.md) §4·§5다. 아래 표는 그 요약과 화면·비용 쪽 조건이다.
+
 | 조건 | 깨지면 생기는 문제 | 지키는 장치 |
 |---|---|---|
 | `course`는 수강 과목일 때만 쓴다 | 요청 본문으로 남의 과목 강의자료를 검색한다 (권한 사고) | `routes.ask`의 403, `test_api.py::test_ask_with_course_not_enrolled_is_forbidden_without_using_quota` |
@@ -36,6 +38,7 @@
 | 강의자료 목록 SQL에 수강 조건이 있다 | API 검사를 빼먹은 호출자가 남의 과목 수업 구성을 보여 준다 | `documents.py`의 `in_(allowed_courses)`, `test_course_documents.py::test_course_outside_allowed_returns_nothing_even_if_called_directly` |
 | 미수강·없는 과목은 같은 403 | 응답 차이로 어떤 과목 코드가 있는지 새어 나간다 | `test_course_documents_of_other_or_unknown_course_are_forbidden_alike` |
 | 이력이 없으면 재작성 호출이 없다 | 평가(단일 질문)의 호출 수·비용이 이전 실행과 달라져 비교가 무효가 된다 | `test_pipeline.py::test_no_history_means_no_rewrite_call` |
+| 재작성이 `end_turn`으로 끝났을 때만 쓴다 | 거절 내용을 읽거나, max_tokens로 끊긴 반쪽 문장이 검색어가 된다 | `conversation.condense_question`, `test_truncated_output_falls_back_to_original_question` |
 | 재작성 결과는 500자 이하 | 긴 검색어의 임베딩이 4xx로 실패 → 500, 한도도 못 돌려받는다 | `CONDENSED_MAX_CHARS`, `test_conversation.py::test_overlong_output_falls_back_to_original_question` |
 | 이력 상한(6턴·답변 2000자)이 화면과 서버에서 같다 | 대화가 길어지면 다음 질문 전체가 422로 거절된다 | `questions.js`·`routes.py` 상수, `AskPage.test.jsx` "history is trimmed to the server limits" |
 | 과목을 바꾸면 대화를 비운다 | 재작성이 이전 과목 주제로 끌려가 엉뚱한 검색어가 된다 | `AskPage.selectCourse`, "switching course starts a new conversation" |
@@ -43,7 +46,9 @@
 | 사이드바는 1~3학년 칸을 항상 보인다(수강 없으면 "수강 과목 없음") | 학년 칸이 사라지면 학생이 "이 학년 과목이 빠졌나?"와 "안 듣는다"를 구분 못 한다 | `AskPage.groupByGrade`, "sidebar lists every grade in order…" |
 | 실패한 질문은 이력에 넣지 않는다 | 답 없는 턴이 맥락으로 들어가 재작성이 흔들린다 | "failed question is not added to history" |
 
-외부 요인: 재작성 호출에서 공급사 장애(5xx·429·연결 실패)가 나면 다른 LLM 호출과 같이 `UpstreamError` → 503 + 한도 환불이다(`deps.get_answer_fn`).
+외부 요인: 재작성 호출에서 공급사 장애(5xx·429·연결 실패)가 나면 다른 LLM 호출과 같이 `UpstreamError` → 503 + 한도 환불이다(`deps.get_answer_fn`, `test_integration.py::test_rewrite_outage_returns_503_and_refunds` — 재작성에서 예외를 삼키면 실패함을 변이로 확인).
+
+화면: 답을 기다리는 동안 이어 쓴 글은 답이 와도 지우지 않는다(보낸 질문과 같을 때만 비움). 강의자료 목록이 401이면 로그인 화면으로 보낸다.
 
 ## 4. 다음 수정
 

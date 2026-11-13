@@ -2,7 +2,7 @@
 
 > 2026-11-13: 학년별 과목 버튼·과목별 강의자료 패널·대화 스레드(새 대화)가 추가됐다. 불변 조건과 상한은 [`conversation.md`](conversation.md).
 
-> 마지막 갱신: 2026-10-20 · 계획: [`docs/exec-plans/done/2026-10-20-m4a-frontend.md`](../exec-plans/done/2026-10-20-m4a-frontend.md) · 설계 §2·§4·§7
+> 마지막 갱신: 2026-11-13 · 계획: [`docs/exec-plans/done/2026-10-20-m4a-frontend.md`](../exec-plans/done/2026-10-20-m4a-frontend.md) · 설계 §2·§4·§7
 
 ## 1. 핵심 개념
 

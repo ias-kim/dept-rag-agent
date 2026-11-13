@@ -1,6 +1,6 @@
 # 권한 설계 문서 (완성본)
 
-> 완성본 2026-11-11 · 8주차 M6("README 및 권한 설계 문서 완성") · 1판 2026-10-27(6주차 M5) · 계획: [`m6-final-docs`](../exec-plans/active/2026-11-11-m6-final-docs.md), [`m5-agent`](../exec-plans/active/2026-10-27-m5-agent.md) · 상위 설계: [`2026-09-28-system-design.md`](2026-09-28-system-design.md) §4 · 배포: [`dev-notes/deploy.md`](../dev-notes/deploy.md)
+> 갱신 2026-11-13(과목 선택·강의자료 목록·대화 이력, PR #23) · 완성본 2026-11-11 · 8주차 M6("README 및 권한 설계 문서 완성") · 1판 2026-10-27(6주차 M5) · 계획: [`m6-final-docs`](../exec-plans/active/2026-11-11-m6-final-docs.md), [`m5-agent`](../exec-plans/active/2026-10-27-m5-agent.md) · 상위 설계: [`2026-09-28-system-design.md`](2026-09-28-system-design.md) §4 · 배포: [`dev-notes/deploy.md`](../dev-notes/deploy.md)
 >
 > **이 문서가 "도구 노출·접근 권한 정책"의 SoT다.** `ARCHITECTURE.md`는 요약과 링크만 둔다.
 > 여기 적힌 테스트 이름은 모두 `backend/tests`에 실제로 있다 — `tests/structural/test_docs_final.py`가 검사한다.
@@ -62,6 +62,9 @@
 | 삭제된 계정의 토큰을 계속 쓴다 | 토큰은 `user_id`만 담고, 요청마다 DB에서 사용자를 찾는다. 없으면 거절 | `test_ask_rejects_token_of_deleted_user` |
 | 수강을 바꿨는데 이전 토큰으로 이전 권한이 남는다 | 과목을 토큰에 넣지 않고 요청마다 DB에서 읽는다 → 즉시 반영 | `test_me_reflects_enrollment_change_without_relogin`, `test_guest_courses_come_from_db_not_token` |
 | 앞선 도구 호출의 결과가 다른 사용자에게 섞인다 | 에이전트 루프의 조각 누적은 **요청 하나의 지역 변수**이고, MCP 서버도 요청마다 `UserContext`로 새로 만든다 | `test_no_foreign_major_chunk_reaches_answer_or_model` |
+| 요청 본문 `course`로 수강하지 않은 과목을 고른다 (2026-11-13 추가) | `/api/ask`가 DB에서 읽은 수강 과목에 **정확히** 있는 코드만 받고(대소문자·공백 정규화 없음), `UserContext(courses={course})`로 **좁히기만** 한다. 아니면 403, 한도 차감 전 | `test_ask_with_course_not_enrolled_is_forbidden_without_using_quota`, `test_course_code_variants_are_not_normalized_into_access`, `test_course_choice_narrows_real_pipeline_to_that_course` |
+| 과목별 강의자료 목록(`GET /api/courses/{code}/documents`)으로 남의 과목 수업 구성을 본다 (2026-11-13 추가) | API가 수강 여부를 검사하고(미수강·없는 과목은 같은 403), `db.documents.list_course_documents`의 SQL에도 `course_code IN allowed_courses` 조건이 붙는다(겹 ②). 파일명만 내보낸다 | `test_course_documents_of_other_or_unknown_course_are_forbidden_alike`, `test_course_outside_allowed_returns_nothing_even_if_called_directly` |
+| 클라이언트가 보낸 대화 이력(`history`)에 지시문을 넣어 범위·권한을 바꾼다 (2026-11-13 추가) | 이력은 후속 질문을 독립 질문으로 다시 쓰는 데만 쓴다(`core/conversation.py`). 바뀌는 것은 본인 질문의 검색어뿐이고 `UserContext`·SQL 조건은 이력과 무관하다. 크기는 6턴·답변 2000자 상한(422) | `test_course_choice_narrows_real_pipeline_to_that_course`(이력+과목을 실제 배선으로), `test_history_size_is_limited_without_using_quota` |
 
 ## 5. 권한 테스트 행렬
 
@@ -77,6 +80,8 @@
 | **agent의 `tools` 인자 = MCP 보이는 도구** | 게스트·수강생별로 모델에 넘긴 도구 이름 집합 == `visible_tools(user)` | `test_agent_tools_argument_matches_mcp_visibility` |
 | 게스트에게 `search_major`가 안 보임 / 호출해도 실행 안 됨 | `tools`에 `search_major` 없음, 호출은 미실행 + `invalid_tool_call` | `test_agent_guest_gets_only_academic_tool`, `test_agent_invalid_call_is_not_executed`, `test_hidden_tool_call_is_rejected` |
 | 로그인 → `/api/ask` → 출처 (실제 파이프라인·MCP·DB) | 게스트 응답 `sources`에 `major/` 없음 | `test_guest_login_ask_never_sees_major` |
+| **두 과목(CS101·CS202) 수강생이 `course=CS101`로 질문** (2026-11-13) — 이력 포함, 모델이 `course_code=CS202`로 넓히려 함 | CS202 조각이 모든 모델 입력에 0건. `routes.ask`의 좁히기를 지우면 FAIL함을 변이로 확인 | `test_course_choice_narrows_real_pipeline_to_that_course` |
+| A 수강생이 B 과목 강의자료 목록 요청 / DB 함수를 직접 호출 | 403 / 0건 | `test_course_documents_of_other_or_unknown_course_are_forbidden_alike`, `test_course_outside_allowed_returns_nothing_even_if_called_directly` |
 
 행렬 픽스처는 조각 `academic/calendar.pdf`, `major/CS101/lec1.pdf`, `major/CS202/lec1.pdf`다. CS101과 CS202가 같은 `scope`라 점수가 아니라 `course_code` 조건만이 가른다.
 
