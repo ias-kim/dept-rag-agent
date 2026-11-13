@@ -23,6 +23,9 @@
 | 의도 분류 프롬프트 | `backend/app/core/prompts/classify.md` | 평가 meta의 `classify_prompt_hash` | 실행 기록 |
 | 에이전트 프롬프트 | `backend/app/core/prompts/agent.md` | 평가 실행 meta의 `agent_prompt_hash` | 실행 기록 |
 | 처리 표 (의도 × 수강 여부 → 도구) | `backend/app/core/router.py` `plan()` | 설계 §5 표, `docs/dev-notes/router.md` | `tests/test_router.py` (게이트 1) |
+| 과목 이름·학년·학기 (화면 표시용, 권한과 무관) | `backend/app/core/catalog.py` (원 자료: `data/major/<코드>/` 파일명 접두어 `2-1_`, `data/MANIFEST.md`) | `/api/me` `course_details`, 화면 사이드바 | `tests/test_catalog.py`(학년·학기 접두어 일치). 실제 자료와의 대조는 과목 폴더를 추가할 때 사람이 확인 |
+| 후속 질문 재작성 프롬프트 | `backend/app/core/prompts/condense.md` | `condense_prompt_hash()` (평가는 이력 없이 돌아 아직 meta에 없음) | `tests/test_conversation.py` |
+| 대화 이력 상한 (턴 수·답변 글자 수) | `backend/app/api/routes.py` `HISTORY_MAX_TURNS`·`HISTORY_ANSWER_MAX_CHARS` | `frontend/src/questions.js` 같은 값 | `test_history_size_is_limited_without_using_quota`, `AskPage.test.jsx` "history is trimmed to the server limits" |
 | 화면 공지 문구 (서버 공지 코드 → 학생용 문구) | `frontend/src/notices.js` | 질문 화면 안내 | `frontend/src/notices.test.js` (게이트 1) |
 | 컨테이너 이미지 구성·제외 목록 | `docker/Dockerfile`, `.dockerignore` | `docker/docker-compose.yml` `app` | `tests/structural/test_dockerignore.py` (게이트 1) |
 | 운영 인프라·운영 컨테이너 구성 | `infra/stack.yaml`, `docker/docker-compose.prod.yml`, `docker/Caddyfile` | `docs/dev-notes/deploy.md`, 설계 §7 | `tests/structural/test_deploy_config.py` (게이트 1), cfn-lint (CI) |

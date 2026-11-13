@@ -57,8 +57,18 @@ export async function login(username, password) {
   sessionStorage.setItem(TOKEN_KEY, access_token)
 }
 
-export function ask(question) {
-  return request('POST', '/api/ask', { question }, { auth: true })
+// course: 고른 과목 코드(null이면 수강 과목 전체). history: 앞 대화 [{question, answer}] — 서버가 후속 질문을 다시 써서 검색한다.
+// 비어 있으면 보내지 않는다 — 예전과 같은 요청이 되어 서버 동작(LLM 호출 수)도 같다
+export function ask(question, { course = null, history = [] } = {}) {
+  const payload = { question }
+  if (course) payload.course = course
+  if (history.length > 0) payload.history = history
+  return request('POST', '/api/ask', payload, { auth: true })
+}
+
+// 과목별 강의자료 목록. 수강 안 한 과목은 서버가 403으로 막는다 — 화면이 숨기는 것만으로는 권한이 아니다
+export function courseDocuments(code) {
+  return request('GET', `/api/courses/${encodeURIComponent(code)}/documents`, undefined, { auth: true })
 }
 
 // 상단 수강 과목 표시용. 한도를 쓰지 않으므로 화면을 열 때마다 불러도 된다

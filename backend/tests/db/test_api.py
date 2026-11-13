@@ -19,10 +19,12 @@ SECRET = "t" * 32
 class FakeAnswerFn:
     def __init__(self, error: Exception | None = None):
         self.calls = []
+        self.histories = []
         self.error = error
 
-    async def __call__(self, question, user, session):
+    async def __call__(self, question, user, session, history=()):
         self.calls.append((question, user))
+        self.histories.append(history)
         if self.error:
             raise self.error
         return Answer(text="답[1]", sources=[Source("academic/a.md", 2, "제목")], citation_ok=True,
@@ -168,7 +170,17 @@ def test_me_returns_username_and_sorted_courses(api, session):
     user = make_account(session, courses=frozenset({"DB", "AGENT"}))
     res = client.get("/api/me", headers=auth(user.id))
     assert res.status_code == 200
-    assert res.json() == {"username": "kim", "courses": ["AGENT", "DB"]}
+    body = res.json()
+    assert body["username"] == "kim" and body["courses"] == ["AGENT", "DB"]
+
+
+def test_me_groups_course_details_by_grade(api, session):
+    # 화면이 2학년·3학년 과목을 나눠 보이려면 학년이 있어야 한다. 학년이 높은 과목부터, 모르는 과목은 맨 뒤
+    client, _ = api
+    user = make_account(session, courses=frozenset({"DB", "AGENT", "NEW999"}))
+    details = client.get("/api/me", headers=auth(user.id)).json()["course_details"]
+    assert [(d["code"], d["grade"]) for d in details] == [("AGENT", 3), ("DB", 2), ("NEW999", None)]
+    assert details[0]["name"] and details[0]["semesters"] == ["3-1", "3-2"]
 
 
 def test_me_guest_has_no_courses(api, session):
@@ -197,3 +209,102 @@ def test_me_reflects_enrollment_change_without_relogin(api, session):
     upsert_user(session, username="kim", password_hash=user.password_hash, courses=frozenset({"AWS"}), daily_quota=3)
     session.commit()
     assert client.get("/api/me", headers=headers).json()["courses"] == ["AWS"]
+
+
+# ── 과목 선택·강의자료 목록 ──
+
+def seed_documents(session):
+    from tests.fakes import seed_chunks
+    seed_chunks(session, [("major/AGENT/3-1_mcp.pdf", "major", "AGENT", 0),
+                          ("major/AGENT/3-2_Docker.pdf", "major", "AGENT", 1),
+                          ("major/WEB/2-1_VCS.pdf", "major", "WEB", 2),
+                          ("academic/notices/a.md", "academic", None, 3)])
+    session.commit()
+
+
+def test_course_documents_lists_file_names_of_enrolled_course(api, session):
+    client, fake = api
+    user = make_account(session, courses=frozenset({"AGENT"}))
+    seed_documents(session)
+    res = client.get("/api/courses/AGENT/documents", headers=auth(user.id))
+    assert res.status_code == 200
+    assert res.json() == [{"file": "3-1_mcp.pdf", "pages": 1}, {"file": "3-2_Docker.pdf", "pages": 1}]
+    assert used_on(session, user.id, seoul_today()) == 0 and fake.calls == []
+
+
+def test_course_documents_of_other_or_unknown_course_are_forbidden_alike(api, session):
+    # 남의 과목 자료 목록이 보이면 권한 겹을 화면 쪽에서 우회한다. 없는 과목과 같은 응답이라 존재 여부도 새지 않는다
+    client, _ = api
+    user = make_account(session, courses=frozenset({"AGENT"}))
+    seed_documents(session)
+    other = client.get("/api/courses/WEB/documents", headers=auth(user.id))
+    unknown = client.get("/api/courses/NOPE/documents", headers=auth(user.id))
+    assert other.status_code == unknown.status_code == 403
+    assert other.json() == unknown.json()
+    assert client.get("/api/courses/AGENT/documents").status_code == 401
+
+
+def test_ask_with_course_narrows_search_scope_to_that_course(api, session):
+    client, fake = api
+    user = make_account(session, courses=frozenset({"AGENT", "DB"}))
+    res = client.post("/api/ask", json={"question": "q", "course": "DB"}, headers=auth(user.id))
+    assert res.status_code == 200
+    assert fake.calls[0][1].courses == frozenset({"DB"})
+
+
+def test_ask_with_course_not_enrolled_is_forbidden_without_using_quota(api, session):
+    # 요청 본문의 과목으로 수강 범위를 넓힐 수 있으면 권한 겹 두 개가 모두 무의미해진다
+    client, fake = api
+    user = make_account(session, courses=frozenset({"AGENT"}))
+    res = client.post("/api/ask", json={"question": "q", "course": "WEB"}, headers=auth(user.id))
+    assert res.status_code == 403
+    assert fake.calls == [] and used_on(session, user.id, seoul_today()) == 0
+
+
+def test_course_code_variants_are_not_normalized_into_access(api, session):
+    # 대소문자·공백을 고쳐 받아 주기 시작하면 비교 규칙이 두 곳(API·SQL)에서 어긋날 수 있다 — 정확히 같은 코드만 인정
+    client, fake = api
+    user = make_account(session, courses=frozenset({"AGENT"}))
+    for variant in ("agent", "AGENT ", " AGENT", ""):
+        assert client.post("/api/ask", json={"question": "q", "course": variant}, headers=auth(user.id)).status_code == 403
+        assert client.get(f"/api/courses/{variant or '%20'}/documents", headers=auth(user.id)).status_code in (403, 404)
+    assert fake.calls == [] and used_on(session, user.id, seoul_today()) == 0
+
+
+def test_ask_without_course_keeps_all_enrolled_courses(api, session):
+    client, fake = api
+    user = make_account(session, courses=frozenset({"AGENT", "DB"}))
+    client.post("/api/ask", json={"question": "q", "course": None}, headers=auth(user.id))
+    assert fake.calls[0][1].courses == frozenset({"AGENT", "DB"})
+
+
+# ── 이어지는 대화 ──
+
+def test_ask_passes_history_turns_to_answer_fn(api, session):
+    client, fake = api
+    user = make_account(session)
+    history = [{"question": "MCP Host가 뭐야?", "answer": "Host는 앱입니다 [1]."}]
+    res = client.post("/api/ask", json={"question": "원격이랑 로컬은?", "history": history}, headers=auth(user.id))
+    assert res.status_code == 200
+    (turn,) = fake.histories[0]
+    assert (turn.question, turn.answer) == ("MCP Host가 뭐야?", "Host는 앱입니다 [1].")
+
+
+def test_ask_without_history_sends_empty_history(api, session):
+    client, fake = api
+    user = make_account(session)
+    client.post("/api/ask", json={"question": "q"}, headers=auth(user.id))
+    assert tuple(fake.histories[0]) == ()
+
+
+def test_history_size_is_limited_without_using_quota(api, session):
+    # 상한이 없으면 아주 긴 이력으로 재작성 모델 입력(비용)을 무한히 키울 수 있다
+    from app.api.routes import HISTORY_ANSWER_MAX_CHARS, HISTORY_MAX_TURNS
+    client, fake = api
+    user = make_account(session)
+    too_many = [{"question": "q", "answer": "a"}] * (HISTORY_MAX_TURNS + 1)
+    too_long = [{"question": "q", "answer": "가" * (HISTORY_ANSWER_MAX_CHARS + 1)}]
+    for history in (too_many, too_long):
+        res = client.post("/api/ask", json={"question": "q", "history": history}, headers=auth(user.id))
+        assert res.status_code == 422
+    assert fake.calls == [] and used_on(session, user.id, seoul_today()) == 0

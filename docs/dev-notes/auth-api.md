@@ -1,6 +1,8 @@
 # 로그인·일일 한도·질문 API — M3b
 
-> 마지막 갱신: 2026-10-13 · 계획: [`docs/exec-plans/done/2026-09-30-m3b-auth-api.md`](../exec-plans/done/2026-09-30-m3b-auth-api.md) · 설계 §4
+> 2026-11-13: `/api/ask`에 `course`(좁히기만)·`history`(최근 6턴), `/api/me`에 `course_details`, `GET /api/courses/{code}/documents`가 추가됐다. 권한 조건은 [`conversation.md`](conversation.md).
+
+> 마지막 갱신: 2026-11-13 · 계획: [`docs/exec-plans/done/2026-09-30-m3b-auth-api.md`](../exec-plans/done/2026-09-30-m3b-auth-api.md) · 설계 §4
 
 ## 1. 핵심 개념
 

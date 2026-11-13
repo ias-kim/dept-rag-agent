@@ -3,6 +3,27 @@
     "schemas": {
       "AskRequest": {
         "properties": {
+          "course": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course"
+          },
+          "history": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HistoryTurn"
+            },
+            "maxItems": 6,
+            "title": "History",
+            "type": "array"
+          },
           "question": {
             "maxLength": 500,
             "minLength": 1,
@@ -57,6 +78,62 @@
         "title": "AskResponse",
         "type": "object"
       },
+      "CourseDocumentOut": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file",
+          "pages"
+        ],
+        "title": "CourseDocumentOut",
+        "type": "object"
+      },
+      "CourseOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "semesters": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Semesters",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "grade",
+          "semesters"
+        ],
+        "title": "CourseOut",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -68,6 +145,26 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HistoryTurn": {
+        "properties": {
+          "answer": {
+            "maxLength": 2000,
+            "title": "Answer",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 500,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ],
+        "title": "HistoryTurn",
         "type": "object"
       },
       "LoginRequest": {
@@ -92,6 +189,13 @@
       },
       "MeResponse": {
         "properties": {
+          "course_details": {
+            "items": {
+              "$ref": "#/components/schemas/CourseOut"
+            },
+            "title": "Course Details",
+            "type": "array"
+          },
           "courses": {
             "items": {
               "type": "string"
@@ -106,7 +210,8 @@
         },
         "required": [
           "username",
-          "courses"
+          "courses",
+          "course_details"
         ],
         "title": "MeResponse",
         "type": "object"
@@ -292,6 +397,55 @@
           }
         },
         "summary": "Login"
+      }
+    },
+    "/api/courses/{code}/documents": {
+      "get": {
+        "description": "과목별 강의자료 목록. 한도를 차감하지 않는다(LLM을 부르지 않는 조회).",
+        "operationId": "course_documents_api_courses__code__documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CourseDocumentOut"
+                  },
+                  "title": "Response Course Documents Api Courses  Code  Documents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Course Documents"
       }
     },
     "/api/me": {

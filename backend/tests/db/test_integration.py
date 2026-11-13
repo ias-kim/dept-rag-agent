@@ -103,3 +103,43 @@ def test_agent_embedding_outage_returns_503_and_refunds(wire, session):
     res = client.post("/api/ask", json={"question": "수강신청 언제야?"}, headers=headers)
     assert res.status_code == 503
     assert used_on(session, user.id, seoul_today()) == 0
+
+
+def test_course_choice_narrows_real_pipeline_to_that_course(wire, session):
+    # 두 과목을 모두 듣는 학생이 CS101을 고르면, 모델이 CS202로 넓히려 해도 CS202 조각이 모델 입력에 닿지 않는다.
+    # 좁히기는 routes.ask에서 일어나므로 파이프라인 단위 테스트로는 볼 수 없다 — 실제 배선 전체를 지난다
+    seed_chunks(session, [("major/CS202/lec1.pdf", "major", "CS202", 0)])
+    llm = FakeLLM(script=[
+        tool_use_reply(("t1", "search_major", {"query": "스택"}),
+                       ("t2", "search_major", {"query": "스택", "course_code": "CS202"})),
+        text_reply("제공된 자료에서 답을 찾을 수 없습니다."),
+    ], condense_text="CS101 스택은 언제 쓰나?")
+    client = wire(llm)
+    _, headers = login(client, session, "kim", frozenset({"CS101", "CS202"}))
+    res = client.post("/api/ask", headers=headers, json={
+        "question": "그건 언제 써?", "course": "CS101",
+        "history": [{"question": "스택이 뭐야?", "answer": "나중에 넣은 것을 먼저 꺼냅니다 [1]."}]})
+    assert res.status_code == 200
+    model_inputs = str([c.get("messages") for c in llm.calls])
+    assert "major/CS101" in model_inputs and "major/CS202" not in model_inputs
+    assert len(llm.condense_calls) == 1 and "CS101 스택은 언제 쓰나?" in str(llm.calls[0]["messages"][0])
+
+
+def test_rewrite_outage_returns_503_and_refunds(wire, session):
+    # 후속 질문 재작성(classify_model)도 공급사 호출이다. 장애를 그냥 500으로 올리면 학생이 장애로 한도를 잃는다
+    import anthropic
+
+    outage = anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
+    llm = FakeLLM(script=[text_reply("쓰이지 않음")])
+
+    def fail_rewrite(**kwargs):
+        raise outage
+
+    llm.messages.create = fail_rewrite
+    client = wire(llm)
+    user, headers = login(client, session, "kim", frozenset({"CS101"}))
+    res = client.post("/api/ask", headers=headers, json={
+        "question": "그건 언제 써?", "history": [{"question": "스택이 뭐야?", "answer": "나중 것을 먼저 꺼냅니다."}]})
+    assert res.status_code == 503
+    assert used_on(session, user.id, seoul_today()) == 0
+    assert llm.calls == []  # 재작성에서 멈춰야 한다 — 원래 질문으로 계속 답하면 장애가 숨는다

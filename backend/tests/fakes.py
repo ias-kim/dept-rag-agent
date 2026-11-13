@@ -83,10 +83,13 @@ class FakeLLM:
     """
 
     def __init__(self, text: str = "", stop_reason: str = "end_turn", *, classify_text: str = "academic",
-                 classify_stop: str = "end_turn", script: Sequence[SimpleNamespace] | None = None):
+                 classify_stop: str = "end_turn", script: Sequence[SimpleNamespace] | None = None,
+                 condense_text: str = ""):
         self.script = list(script) if script is not None else None
         self.calls: list[dict] = []
         self.classify_calls: list[dict] = []
+        self.condense_calls: list[dict] = []
+        self.condense_text = condense_text
         self.text = text
         self.stop_reason = stop_reason
         self.classify_text = classify_text
@@ -103,6 +106,11 @@ class FakeLLM:
         return SimpleNamespace(stop_reason=self.stop_reason, content=content if self.stop_reason != "refusal" else [])
 
     def _classify(self, **kwargs):
+        # 분류와 질문 재작성은 같은 messages.create를 쓴다 — 시스템 프롬프트로 구분해 따로 기록한다
+        from app.core.conversation import condense_prompt
+        if kwargs.get("system") == condense_prompt():
+            self.condense_calls.append(kwargs)
+            return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=self.condense_text)])
         self.classify_calls.append(kwargs)
         content = [SimpleNamespace(type="text", text=self.classify_text)] if self.classify_stop != "refusal" else []
         return SimpleNamespace(stop_reason=self.classify_stop, content=content)
