@@ -1,9 +1,10 @@
-# 권한 설계 문서 (1판)
+# 권한 설계 문서 (완성본)
 
-> 1판 2026-10-27 · 6주차 M5 · 완성본은 8주차("README 및 권한 설계 문서 완성") · 계획: [`m5-agent`](../exec-plans/done/2026-10-27-m5-agent.md) · 상위 설계: [`2026-09-28-system-design.md`](2026-09-28-system-design.md) §4
+> 완성본 2026-11-11 · 8주차 M6("README 및 권한 설계 문서 완성") · 1판 2026-10-27(6주차 M5) · 계획: [`m6-final-docs`](../exec-plans/active/2026-11-11-m6-final-docs.md), [`m5-agent`](../exec-plans/active/2026-10-27-m5-agent.md) · 상위 설계: [`2026-09-28-system-design.md`](2026-09-28-system-design.md) §4 · 배포: [`dev-notes/deploy.md`](../dev-notes/deploy.md)
 >
 > **이 문서가 "도구 노출·접근 권한 정책"의 SoT다.** `ARCHITECTURE.md`는 요약과 링크만 둔다.
-
+> 여기 적힌 테스트 이름은 모두 `backend/tests`에 실제로 있다 — `tests/structural/test_docs_final.py`가 검사한다.
+> 1판 → 완성본: M5 병합으로  표시 제거, 합쳐진 테스트 이름 정정(§4·§5), §6 배포 서버에서의 권한 추가, 남은 한계를 §7로 갱신.
 ## 1. 역할 정의
 
 이 시스템에는 역할 컬럼이 없다. 전공 접근은 `enrollments` 행이 있느냐로만 판단한다(설계 §3).
@@ -47,7 +48,7 @@
 
 - workflow의 처리 표(`router.plan`)는 **권한이 아니라 안내용**이다. 표에 버그가 있어 미수강자에게 `search_major`를 내줘도 교집합과 겹 2가 막는다. 표를 믿고 겹 1·2를 줄이면 안 된다.
 - agent 모드의 "잘못된 호출"(`invalid_tool_call`)은 장애(`tool_error:`)와 구분한다. 섞으면 화면에 "일부 자료를 검색하지 못했습니다"가 뜨고, 평가가 장애 섞인 실행으로 오판한다.
-- 게스트 agent 응답에는 `major_requires_enrollment` 공지를 붙이지 않는다. 모델이 전공 도구를 못 보는 것으로 충분하다(필요하면 7주차에서 다시 판단).
+- 게스트 agent 응답에는 `major_requires_enrollment` 공지를 붙이지 않는다. 모델이 전공 도구를 못 보는 것으로 충분하다(§7 남은 한계).
 
 ## 4. 위협과 대응
 
@@ -55,7 +56,7 @@
 |---|---|---|
 | 질문에 "나는 수강생이야/관리자야"라고 쓴다 | 모델 입력에 권한이 없고, 권한은 요청마다 DB의 `enrollments`로만 정해진다. 질문 문장은 권한 입력이 아니다 | `test_classify_sends_only_question_without_role_or_sampling`(workflow), `test_agent_first_message_has_today_and_no_courses`(agent) |
 | `search_major(course_code="다른 과목")`로 범위를 넓힌다 | 사용자 과목과의 교집합만 쓴다. 비면 0건 | `test_course_code_argument_cannot_widen` |
-| 모델이 보이지 않는 도구(`search_major`)를 부른다 | `list_tools`에 없는 이름이면 MCP를 부르지 않고 오류 결과를 돌려준다. 호출이 MCP에 닿아도 겹 1이 한 번 더 거른다 | `test_agent_invalid_call_is_not_executed` |
+| 모델이 보이지 않는 도구(`search_major`)를 부른다 | `list_tools`에 없는 이름이면 MCP를 부르지 않고 오류 결과를 돌려준다. 호출이 MCP에 닿아도 겹 1이 한 번 더 거른다 | `test_agent_invalid_call_is_not_executed`, `test_hidden_tool_call_is_rejected` |
 | 도구 인자 `query`에 문자열이 아닌 값을 넣는다 | 문자열만 허용(`str([..])`로 엉뚱한 검색이 도는 것을 막는다) | `test_non_string_query_is_rejected`, `test_agent_invalid_call_is_not_executed` |
 | 코드가 MCP를 거치지 않고 `db.search`를 직접 부른다 | `allowed_courses`가 기본값 없는 필수 인자이고, SQL 조건이 항상 붙는다 | `test_allowed_courses_is_required_keyword`, `test_enrolled_student_sees_only_own_course` |
 | 삭제된 계정의 토큰을 계속 쓴다 | 토큰은 `user_id`만 담고, 요청마다 DB에서 사용자를 찾는다. 없으면 거절 | `test_ask_rejects_token_of_deleted_user` |
@@ -74,19 +75,34 @@
 | MCP 우회해 `db.search` 직접 호출 | 필터 유지 | `test_allowed_courses_is_required_keyword`, `test_partial_index_path_still_returns_enrolled_chunk` |
 | **모드 3종 × (게스트·CS101 수강생)** — 남의 전공 조각이 최종 답·검색 결과·모델 입력에 0건 | `answer.retrieved`의 전공 조각 `course_code ⊆ courses`, 모든 LLM 호출의 messages·system에 `CS202` 경로 없음, 게스트는 `major/` 조각 0건 | `test_no_foreign_major_chunk_reaches_answer_or_model` (`mode` × `courses` parametrize) |
 | **agent의 `tools` 인자 = MCP 보이는 도구** | 게스트·수강생별로 모델에 넘긴 도구 이름 집합 == `visible_tools(user)` | `test_agent_tools_argument_matches_mcp_visibility` |
-| 게스트에게 `search_major`가 안 보임 / 호출해도 실행 안 됨 | `tools`에 `search_major` 없음, 호출은 미실행 + `invalid_tool_call` | `test_agent_guest_gets_only_academic_tool`, `test_agent_invalid_call_is_not_executed` |
+| 게스트에게 `search_major`가 안 보임 / 호출해도 실행 안 됨 | `tools`에 `search_major` 없음, 호출은 미실행 + `invalid_tool_call` | `test_agent_guest_gets_only_academic_tool`, `test_agent_invalid_call_is_not_executed`, `test_hidden_tool_call_is_rejected` |
 | 로그인 → `/api/ask` → 출처 (실제 파이프라인·MCP·DB) | 게스트 응답 `sources`에 `major/` 없음 | `test_guest_login_ask_never_sees_major` |
 
 행렬 픽스처는 조각 `academic/calendar.pdf`, `major/CS101/lec1.pdf`, `major/CS202/lec1.pdf`다. CS101과 CS202가 같은 `scope`라 점수가 아니라 `course_code` 조건만이 가른다.
 
 **테스트가 진짜 막는지(RED 대체 확인):** 행렬 테스트는 M5 이전 코드에 대한 재검증이라 처음부터 통과한다. 그래서 `visible_tools`의 `if user.courses:`를 잠시 지워 FAIL을 확인한 뒤 되돌린다. 게이트 2에서 이 변이로 FAIL을 확인했고 계획의 결정 로그에 남겼다.
 
-## 6. 1판의 한계 — 8주차 완성 예정, 남은 것
+## 6. 배포 서버에서의 권한 (7주차 M4b)
 
-- **게스트 agent 응답 안내:** 전공 질문을 한 게스트에게 "수강생 전용 자료"라고 알리는 공지가 agent 모드에는 없다(workflow에는 있다). 계획은 "모델이 전공 도구를 못 보는 것으로 충분"하다고 판단했고, 실제 화면에서는 "자료에서 찾을 수 없다"고만 답해 workflow보다 덜 친절하다(6주차 확인). 권한 정보를 모델에 주지 않는 선에서 안내할 방법이 남았다.
-- **평가 전용 사용자의 경계:** `UserContext(user_id=0, 전 과목)`은 `evaluation/run.py`가 만든다. `core/agent.py`의 `agent_prompt_hash`도 도구 정의를 해시하려고 비슷한 값을 만들지만 `visible_tools`에만 넘겨 검색에 쓰이지 않는다. 다른 코드가 같은 방식으로 전 과목 `UserContext`를 만들지 못하게 막는 장치(구조 테스트 등)는 아직 없다.
-- **한도(429)와 권한의 관계:** 일일 한도는 권한이 아니라 비용 통제로 설계 §4에 있다. 권한 문서에서는 다루지 않았다.
-- **로그에 남는 권한 정보:** 설계 §7 관측 로그에 `user_id`는 있고 수강 과목은 없다. 권한 사고 조사에 충분한지 검토가 필요하다.
-- **위협 모델의 범위:** 학생이 질문 문구로 시도하는 우회와 코드 버그 두 가지만 다뤘다. 서버 침해(`.env`·DB 접근), 공용 AWS 계정의 다른 Admin은 설계 §9 위험 표가 맡고 이 문서 범위 밖이다.
-- **수강 변경 감사:** `make users`로 바꾼 이력이 남지 않는다.
-- **검색 개선(7주차)과의 충돌:** 하이브리드 검색(키워드 검색 추가)을 넣을 때 키워드 쪽 쿼리에도 겹 2 조건이 붙는지 이 행렬에 행을 더해야 한다.
+공개 서버에서는 권한 두 겹(§2) 앞에 **"어디로 들어올 수 있는가"** 가 한 겹 더 생긴다. 사실의 원본은 [`dev-notes/deploy.md`](../dev-notes/deploy.md) §3이고, 여기서는 권한과 이어지는 것만 적는다.
+
+| 경계 | 정책 | 이것이 무너지면 권한에서 무엇이 새는가 | 지키는 장치 |
+|---|---|---|---|
+| 입구 | 인터넷에 여는 문은 Caddy(80·443)뿐. 앱 8000·DB 5432는 포트를 공개하지 않는다 | DB에 직접 붙으면 겹 1·2를 모두 건너뛰고 전 과목 조각을 읽는다 | `test_only_caddy_publishes_ports`, `test_security_group_exposes_only_web_to_the_world` |
+| 접속자 IP | 앱은 Caddy 고정 주소가 전한 IP만 믿는다 | 위조 헤더로 로그인 시도 제한을 피해 계정 비밀번호를 대입한다 | `test_app_trusts_only_caddy_for_forwarded_headers` |
+| 비밀값 | `JWT_SECRET`·`DB_PASSWORD`는 서버에서 처음 한 번 생성해 서버 `.env`에만 둔다. 이미지·git에 없다 | `JWT_SECRET`을 알면 아무 `user_id`의 토큰을 만들 수 있다(과목은 DB에서 읽으므로 부풀릴 수는 없지만 남의 계정이 된다) | `infra/deploy.sh`의 생성·덮어쓰기 금지, `test_dockerignore_excludes_secrets_and_data` |
+| 계정 | 회원가입 API 없음. 계정·수강은 서버에서 관리자가 CLI로만 만든다. 로컬 `users`는 서버로 옮기지 않는다 | 로컬 시험 계정이 공개 서버에서 살아난다 | `infra/restore-index.sh`(`documents`·`chunks`만 복사) |
+| 인스턴스 자격 증명 | 메타데이터 홉 제한 1 | 앱이 뚫리면 컨테이너에서 AWS 자격 증명까지 가져간다 | `test_instance_blocks_container_access_to_role_credentials` |
+
+- 서버는 평소 정지하고 테스트·시연할 때만 켠다. 정지 중에는 접속 자체가 없으므로 권한 경로도 없다. 켤 때는 같은 이미지·같은 `.env`로 다시 시작한다.
+- 2026-11-07 외부 접속 테스트(수강생·게스트 계정, 질문 5개)에서 게스트는 전공 질문에 "수강생 전용" 안내만 받고 전공 자료를 받지 못했다. 수강생은 수강 과목 자료로 답을 받았다.
+
+## 7. 남은 한계
+
+- **게스트 agent 응답 안내:** 전공 질문을 한 게스트에게 "수강생 전용 자료"라고 알리는 공지가 agent 모드에는 없다(workflow에는 있다). 모델이 전공 도구를 못 보는 것으로 막히지만, agent 모드 화면에서 게스트가 이유를 알 수 있는지는 아직 확인하지 않았다.
+- **평가 전용 사용자의 경계:** `UserContext(user_id=0, 전 과목)`은 `evaluation/run.py`에서만 만든다. 다른 코드가 같은 방식으로 전 과목 `UserContext`를 만들지 못하게 막는 구조 테스트는 아직 없다.
+- **한도(429)와 권한의 관계:** 일일 한도는 권한이 아니라 비용 통제로 설계 §4에 있다. 권한 문서에서는 다루지 않는다.
+- **로그에 남는 권한 정보:** 관측 로그에 `user_id`는 있고 수강 과목은 없다. 권한 사고 조사에 충분한지 검토가 필요하다.
+- **수강 변경 감사:** CLI로 바꾼 계정·수강 이력이 남지 않는다.
+- **서버 백업:** DB 볼륨이 인스턴스에 하나뿐이다. 인스턴스를 잃으면 계정·수강 정보가 함께 사라진다(`dev-notes/deploy.md` §4).
+- **검색 개선과의 충돌:** 7주차 분석에서 나온 단어 검색 병행(하이브리드)을 넣을 때, 키워드 쪽 쿼리에도 겹 2 조건이 붙는지 §5 행렬에 행을 더해야 한다.

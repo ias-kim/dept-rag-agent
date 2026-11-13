@@ -19,6 +19,7 @@
 | 적재 | `make migrate && make ingest` | `data/academic/…`, `data/major/<과목코드>/…` PDF |
 | 스모크 | `make smoke` | `/health` 확인. 다른 주소는 `make smoke URL=http://localhost:8080` |
 | 계정 | `make users ARGS="add kim --courses AGENT,AWS"` | 비밀번호는 프롬프트로 입력(`--password-stdin` 가능). 과목 비우면 게스트(학사만). 서버에는 `.env`의 `JWT_SECRET`(32자 이상) 필요 |
+| 배포 | `infra/deploy.sh <IP> <도메인>` | 현재 커밋을 서버에 올려 빌드·기동. 스택 생성·색인 복원·비밀값은 `docs/dev-notes/deploy.md` |
 | 평가 | `make eval LABEL=baseline` → 채점 → `make eval-report` | 실제 API 비용 발생. 가이드 `eval/README.md` |
 | 라우터 평가 | `make eval LABEL=router-v1 MODE=workflow` | 기본 MODE는 baseline. 같은 커밋·같은 날의 `baseline-v2`와 비교 |
 | 에이전트 평가 | `make eval LABEL=agent-v1 MODE=agent` | 유료·workflow보다 비용 큼. 같은 커밋·같은 날 workflow 재측정과 비교. [`dev-notes/agent.md`](docs/dev-notes/agent.md) |
