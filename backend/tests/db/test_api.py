@@ -261,6 +261,16 @@ def test_ask_with_course_not_enrolled_is_forbidden_without_using_quota(api, sess
     assert fake.calls == [] and used_on(session, user.id, seoul_today()) == 0
 
 
+def test_course_code_variants_are_not_normalized_into_access(api, session):
+    # 대소문자·공백을 고쳐 받아 주기 시작하면 비교 규칙이 두 곳(API·SQL)에서 어긋날 수 있다 — 정확히 같은 코드만 인정
+    client, fake = api
+    user = make_account(session, courses=frozenset({"AGENT"}))
+    for variant in ("agent", "AGENT ", " AGENT", ""):
+        assert client.post("/api/ask", json={"question": "q", "course": variant}, headers=auth(user.id)).status_code == 403
+        assert client.get(f"/api/courses/{variant or '%20'}/documents", headers=auth(user.id)).status_code in (403, 404)
+    assert fake.calls == [] and used_on(session, user.id, seoul_today()) == 0
+
+
 def test_ask_without_course_keeps_all_enrolled_courses(api, session):
     client, fake = api
     user = make_account(session, courses=frozenset({"AGENT", "DB"}))

@@ -123,3 +123,23 @@ def test_course_choice_narrows_real_pipeline_to_that_course(wire, session):
     model_inputs = str([c.get("messages") for c in llm.calls])
     assert "major/CS101" in model_inputs and "major/CS202" not in model_inputs
     assert len(llm.condense_calls) == 1 and "CS101 스택은 언제 쓰나?" in str(llm.calls[0]["messages"][0])
+
+
+def test_rewrite_outage_returns_503_and_refunds(wire, session):
+    # 후속 질문 재작성(classify_model)도 공급사 호출이다. 장애를 그냥 500으로 올리면 학생이 장애로 한도를 잃는다
+    import anthropic
+
+    outage = anthropic.APIConnectionError(request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
+    llm = FakeLLM(script=[text_reply("쓰이지 않음")])
+
+    def fail_rewrite(**kwargs):
+        raise outage
+
+    llm.messages.create = fail_rewrite
+    client = wire(llm)
+    user, headers = login(client, session, "kim", frozenset({"CS101"}))
+    res = client.post("/api/ask", headers=headers, json={
+        "question": "그건 언제 써?", "history": [{"question": "스택이 뭐야?", "answer": "나중 것을 먼저 꺼냅니다."}]})
+    assert res.status_code == 503
+    assert used_on(session, user.id, seoul_today()) == 0
+    assert llm.calls == []  # 재작성에서 멈춰야 한다 — 원래 질문으로 계속 답하면 장애가 숨는다

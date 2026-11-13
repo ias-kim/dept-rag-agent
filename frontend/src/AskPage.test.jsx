@@ -432,3 +432,22 @@ test('course and new-conversation buttons are locked while an answer is pending'
   within(nav).getAllByRole('button').forEach((b) => expect(b).toBeDisabled())
   expect(screen.getByRole('button', { name: '새 대화' })).toBeDisabled()
 })
+
+test('expired token while loading materials returns to login', async () => {
+  courseDocuments.mockRejectedValue(new ApiError(401, '로그인이 필요합니다'))
+  const { user, onLogout } = setup()
+  await user.click(await screen.findByRole('button', { name: /AI 에이전트·MCP/ }))
+  await vi.waitFor(() => expect(onLogout).toHaveBeenCalledWith('expired'))
+})
+
+test('text typed while waiting is kept when the answer arrives', async () => {
+  // 기다리며 다음 질문을 써 두면 답이 도착할 때 지워져서는 안 된다 — 보낸 질문과 같을 때만 비운다
+  let resolve
+  ask.mockReturnValue(new Promise((r) => { resolve = r }))
+  const { user } = setup()
+  await submit(user, '첫 질문')
+  await user.type(screen.getByLabelText('질문'), ' 그리고 다음 질문')
+  resolve(full)
+  await screen.findByRole('article')
+  expect(screen.getByLabelText('질문')).toHaveValue('첫 질문 그리고 다음 질문')
+})

@@ -237,7 +237,8 @@ export default function AskPage({ onLogout }) {
       const result = await ask(asked, { course: course?.code ?? null, history: toHistory(turns) })
       // 실패한 질문은 대화에 넣지 않는다 — 답 없는 턴이 이력으로 가면 재작성 모델이 빈 답을 맥락으로 쓴다
       setTurns((prev) => [...prev, { question: asked, result, course }])
-      setQuestion('')
+      // 보낸 그대로일 때만 비운다 — 기다리는 동안 이어 쓴 글을 답 도착과 함께 지우지 않게
+      setQuestion((current) => (current.trim() === asked ? '' : current))
     } catch (err) {
       if (err.status === 401) {
         onLogout('expired')

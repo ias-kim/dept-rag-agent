@@ -281,10 +281,12 @@ async def test_agent_receives_standalone_question(session):
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("mode", ["baseline", "workflow"])
+@pytest.mark.parametrize("mode", ["baseline", "workflow", "agent"])
 async def test_no_history_means_no_rewrite_call(session, mode):
     # 이력이 없을 때 호출 수가 늘면 평가(단일 질문)의 비용·조건이 이전 실행과 달라진다
+    from tests.fakes import text_reply
     seed_chunks(session, CORPUS)
-    llm = FakeLLM("답", classify_text="both", condense_text=STANDALONE)
+    script = [text_reply("제공된 자료에서 답을 찾을 수 없습니다.")] if mode == "agent" else None
+    llm = FakeLLM("답", classify_text="both", condense_text=STANDALONE, script=script)
     await answer_question("스택이 뭐야?", user("CS101"), deps(session, llm), mode=mode)
     assert llm.condense_calls == []

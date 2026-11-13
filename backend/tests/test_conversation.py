@@ -61,3 +61,8 @@ def test_only_recent_turns_are_used():
     many = tuple(Turn(f"질문{i}", f"답{i}") for i in range(10))
     text = render_history(many)
     assert "질문9" in text and "질문0" not in text
+
+
+def test_truncated_output_falls_back_to_original_question():
+    # max_tokens에서 끊긴 반쪽 문장을 검색어로 쓰면 원래 질문보다 나쁜 검색이 된다
+    assert condense(CondenseLLM("MCP 원격 서버와 로컬", stop_reason="max_tokens")) == "원격이랑 로컬은 뭐가 달라?"

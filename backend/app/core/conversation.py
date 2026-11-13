@@ -58,7 +58,8 @@ def condense_question(llm: Any, question: str, history: Sequence[Turn], *, model
         system=condense_prompt(),
         messages=[{"role": "user", "content": f"<앞 대화>\n{render_history(history)}\n</앞 대화>\n\n새 질문: {question}"}],
     )
-    if response.stop_reason == "refusal":  # 거절 응답의 content는 읽지 않는다
+    # 거절 응답의 content는 읽지 않는다. max_tokens로 끊긴 반쪽 문장은 원래 질문보다 나쁜 검색어다
+    if response.stop_reason != "end_turn":
         return question
     rewritten = _clean("".join(b.text for b in response.content if b.type == "text"))
     if not rewritten or len(rewritten) > CONDENSED_MAX_CHARS:
