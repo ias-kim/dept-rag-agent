@@ -82,6 +82,62 @@ button.example:hover { background: var(--accent-weak); color: var(--accent); }
   background: var(--bg); border-radius: 8px; padding: 4px 10px;
 }
 
+/* 사이드바 + 본문 */
+.layout {
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 28px;
+  max-width: 1160px; margin: 0 auto; padding: 0 24px;
+}
+.layout .page { max-width: 780px; width: 100%; margin: 0; padding: 12px 0 64px; }
+
+/* 사이드바 — 학년별 수강 과목 */
+.sidebar {
+  position: sticky; top: 16px; align-self: start; margin-top: 28px;
+  max-height: calc(100vh - 32px); overflow-y: auto;
+  background: var(--surface); border-radius: 18px; padding: 18px 14px;
+}
+.sidebar-title { margin: 0 6px 12px; font-size: 13px; font-weight: 800; color: var(--sub); }
+.sidebar .hint { margin: 0 6px; font-size: 13.5px; color: var(--muted); }
+.sidebar nav { display: flex; flex-direction: column; gap: 4px; }
+.grade { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+.grade-head { display: flex; align-items: center; gap: 6px; margin: 0 6px 2px; }
+.grade-head h2 { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.grade-count {
+  font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 999px;
+  background: var(--bg); color: var(--sub);
+}
+.grade-empty { margin: 0 6px; font-size: 13px; color: var(--muted); }
+button.course-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  text-align: left; white-space: normal; padding: 10px 12px; border-radius: 12px;
+  background: transparent; color: var(--text); font-weight: 600; font-size: 14.5px;
+}
+button.course-item:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--bg); }
+button.course-item[aria-pressed="true"] { background: var(--accent-weak); color: var(--accent); }
+button.course-item[aria-pressed="true"]:hover { background: var(--accent-weak); }
+.course-meta { font-size: 12px; font-weight: 500; color: var(--muted); }
+button.course-item[aria-pressed="true"] .course-meta { color: var(--accent); opacity: 0.8; }
+
+/* 고른 과목의 강의자료 */
+.materials { background: var(--surface); border-radius: 16px; padding: 16px 20px; margin: 0 0 18px; }
+.materials h2 { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 15px; }
+.materials h2 small { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.materials .hint { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.materials ul { list-style: none; margin: 10px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
+.materials li { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+.materials li + li { border-top: 1px dashed var(--line); }
+.materials .pdf { width: 26px; height: 30px; font-size: 9px; }
+.material-name { min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 대화 */
+.thread-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0 10px; font-size: 13px; color: var(--muted); }
+.thread { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
+.asked {
+  align-self: flex-end; margin: 0 0 16px; padding: 10px 16px; border-radius: 14px 14px 4px 14px;
+  background: var(--accent-weak); color: var(--text); font-weight: 600; white-space: pre-wrap;
+}
+.turn { display: flex; flex-direction: column; }
+.scope { font-weight: 600; color: var(--muted); }
+
 /* 답을 기다리는 동안 */
 .skeleton { display: flex; flex-direction: column; gap: 12px; }
 .skeleton span { height: 14px; border-radius: 7px; background: var(--skeleton); animation: pulse 1.2s ease-in-out infinite; }
@@ -106,15 +162,29 @@ button.example:hover { background: var(--accent-weak); color: var(--accent); }
 .notice { margin: 0 0 18px; padding: 10px 14px; border-radius: 10px; background: var(--notice-bg); color: var(--notice-text); font-size: 14px; }
 .login-card .error { margin: 0; }
 
+/* 좁은 화면 — 사이드바를 본문 위로 */
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .sidebar { position: static; max-height: none; margin-top: 12px; padding: 14px 12px; }
+  .sidebar nav { flex-direction: row; flex-wrap: wrap; gap: 6px 10px; }
+  .grade { flex-direction: row; flex-wrap: wrap; align-items: center; margin-top: 0; }
+  .grade-head { margin: 0 2px 0 6px; }
+  button.course-item { width: auto; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; }
+  .course-meta { display: none; }
+}
+
 /* 휴대폰 폭 */
 @media (max-width: 600px) {
   .topbar { padding: 12px 16px; }
   .username { display: none; }
   .page { padding: 4px 16px 48px; }
+  .layout { padding: 0 16px; }
+  .layout .page { padding: 4px 0 48px; }
   h1 { font-size: 24px; margin-top: 16px; }
   .search { flex-direction: column; align-items: stretch; padding: 10px 10px 10px 16px; }
   .count { align-self: flex-start; }
   .card { padding: 22px 18px; }
+  .materials { padding: 14px 16px; }
 }
 
 /* 화면에는 안 보이고 스크린리더만 읽는 글자 (인용 배지의 "출처 ") */

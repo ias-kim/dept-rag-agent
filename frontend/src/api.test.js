@@ -1,4 +1,4 @@
-import { ApiError, NETWORK_ERROR, SERVER_ERROR, TOKEN_KEY, ask, getToken, login, me } from './api'
+import { ApiError, NETWORK_ERROR, SERVER_ERROR, TOKEN_KEY, ask, courseDocuments, getToken, login, me } from './api'
 
 function json(status, body) {
   return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -80,5 +80,26 @@ test('me sends bearer GET and returns body', async () => {
   expect(url).toBe('/api/me')
   expect(init.method).toBe('GET')
   expect(init.body).toBeUndefined()
+  expect(init.headers.Authorization).toBe('Bearer t1')
+})
+
+
+test('ask sends chosen course and history only when given', async () => {
+  sessionStorage.setItem(TOKEN_KEY, 't1')
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(() => json(200, {}))
+  const history = [{ question: 'q1', answer: 'a1' }]
+  await ask('q2', { course: 'AGENT', history })
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ question: 'q2', course: 'AGENT', history })
+  await ask('q3', { course: null, history: [] })
+  expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ question: 'q3' })
+})
+
+test('courseDocuments asks for one course with the token', async () => {
+  sessionStorage.setItem(TOKEN_KEY, 't1')
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(json(200, [{ file: 'a.pdf', pages: 3 }]))
+  await expect(courseDocuments('AGENT')).resolves.toEqual([{ file: 'a.pdf', pages: 3 }])
+  const [url, init] = fetchMock.mock.calls[0]
+  expect(url).toBe('/api/courses/AGENT/documents')
+  expect(init.method).toBe('GET')
   expect(init.headers.Authorization).toBe('Bearer t1')
 })
